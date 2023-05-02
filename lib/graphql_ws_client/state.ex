@@ -47,24 +47,15 @@ defmodule GraphQLWSClient.State do
 
   @spec remove_listener_by_pid(t, pid) :: t
   def remove_listener_by_pid(%__MODULE__{} = state, pid) do
-    # TODO: Optimize?
-    %{
-      state
-      | listeners:
-          state.listeners
-          |> Enum.reject(fn
-            {_, ^pid} -> true
-            _ -> false
-          end)
-          |> Map.new()
-    }
-  end
+    listeners =
+      state.listeners
+      |> Enum.reject(fn
+        {_, ^pid} -> true
+        _ -> false
+      end)
+      |> Map.new()
 
-  @spec remove_subscription(t, term) :: t
-  def remove_subscription(%__MODULE__{} = state, id) do
-    state
-    |> remove_listener(id)
-    |> remove_query(id)
+    %{state | listeners: listeners}
   end
 
   @spec add_query(t, term, GenServer.from()) :: t
@@ -75,5 +66,12 @@ defmodule GraphQLWSClient.State do
   @spec remove_query(t, term) :: t
   def remove_query(%__MODULE__{} = state, id) do
     %{state | queries: Map.delete(state.queries, id)}
+  end
+
+  @spec remove_subscription(t, term) :: t
+  def remove_subscription(%__MODULE__{} = state, id) do
+    state
+    |> remove_listener(id)
+    |> remove_query(id)
   end
 end

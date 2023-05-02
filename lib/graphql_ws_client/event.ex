@@ -1,6 +1,6 @@
-defmodule GraphQLWSClient.Message do
+defmodule GraphQLWSClient.Event do
   @moduledoc """
-  A message for a subscription.
+  A event for a subscription.
   """
 
   defstruct [:subscription_id, :payload]

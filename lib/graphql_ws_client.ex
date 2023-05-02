@@ -3,10 +3,13 @@ defmodule GraphQLWSClient do
 
   require Logger
 
-  alias GraphQLWSClient.{Config, Message, SocketClosedError, State}
+  alias GraphQLWSClient.{Config, Event, SocketClosedError, State}
 
   @type client :: GenServer.server()
 
+  @doc """
+  Starts a graphql-ws client.
+  """
   @spec start_link(Keyword.t() | GenServer.options()) :: GenServer.on_start()
   def start_link(opts) do
     {config, opts} =
@@ -18,18 +21,28 @@ defmodule GraphQLWSClient do
     start_link(config, opts)
   end
 
+  @doc """
+  Starts a graphql-ws client using the given config and `GenServer` options.
+  """
   @spec start_link(Keyword.t() | map, GenServer.options()) ::
           GenServer.on_start()
   def start_link(config, opts) do
     Connection.start_link(__MODULE__, Config.new(config), opts)
   end
 
+  @doc """
+  Closes the connection to the websocket.
+  """
   @spec close(client) :: :ok
   def close(client) do
     Connection.call(client, :close)
   end
 
-  @spec query(client, String.t(), map) :: {:ok, any} | {:error, term}
+  @doc """
+  Sends a GraphQL query or mutation to the websocket and returns the result.
+  """
+  @spec query(client, String.t(), map) ::
+          {:ok, any} | {:error, SocketClosedError.t()}
   def query(client, query, variables \\ %{}) do
     with {:ok, %{"payload" => payload}} <-
            Connection.call(client, {:query, query, variables}) do
@@ -37,6 +50,10 @@ defmodule GraphQLWSClient do
     end
   end
 
+  @doc """
+  Sends a GraphQL subscription to the websocket and registers a listener process
+  to retrieve events.
+  """
   @spec subscribe(client, String.t(), map, pid) ::
           {:ok, subscription_id :: String.t()} | {:error, term}
   def subscribe(client, query, variables \\ %{}, listener \\ self()) do
@@ -189,14 +206,20 @@ defmodule GraphQLWSClient do
   end
 
   def handle_info(
-        {:gun_ws, _pid, _stream_ref, {:close, code, payload}},
+        {:gun_ws, _pid, _stream_ref, msg},
         %State{} = state
       ) do
+    error =
+      case msg do
+        {:close, code, payload} ->
+          %SocketClosedError{code: code, payload: payload}
+
+        {:close, payload} ->
+          %SocketClosedError{payload: payload}
+      end
+
     Enum.each(state.queries, fn {_, from} ->
-      Connection.reply(
-        from,
-        {:error, %SocketClosedError{code: code, payload: payload}}
-      )
+      Connection.reply(from, {:error, error})
     end)
 
     {:disconnect, :socket_closed, %{state | queries: %{}}}
@@ -207,7 +230,7 @@ defmodule GraphQLWSClient do
   defp dispatch(%State{} = state, id, msg) do
     case State.fetch_subscription(state, id) do
       {:ok, {:listener, listener}} ->
-        send(listener, Message.new(id, msg["payload"]))
+        send(listener, Event.new(id, msg["payload"]))
 
       {:ok, {:query, recipient}} ->
         Connection.reply(recipient, {:ok, msg})
@@ -242,11 +265,8 @@ defmodule GraphQLWSClient do
 
       {:gun_ws, _pid, _stream_ref, {:text, payload}} ->
         case decode_message(config.json_library, payload) do
-          %{"type" => "connection_ack"} ->
-            :ok
-
-          _ ->
-            {:error, :unexpected_message}
+          %{"type" => "connection_ack"} -> :ok
+          _ -> {:error, :unexpected_message}
         end
 
       {:gun_ws, _pid, _stream_ref, _msg} ->
