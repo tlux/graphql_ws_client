@@ -1,10 +1,10 @@
 defmodule GraphQLWSClient.State do
   @moduledoc false
 
-  alias GraphQLWSClient.Options
+  alias GraphQLWSClient.Config
 
   @type t :: %__MODULE__{
-          options: Options.t(),
+          config: Config.t(),
           pid: pid,
           monitor_ref: reference,
           stream_ref: reference,
@@ -13,7 +13,7 @@ defmodule GraphQLWSClient.State do
         }
 
   defstruct [
-    :options,
+    :config,
     :pid,
     :monitor_ref,
     :stream_ref,
@@ -58,6 +58,13 @@ defmodule GraphQLWSClient.State do
           end)
           |> Map.new()
     }
+  end
+
+  @spec remove_subscription(t, term) :: t
+  def remove_subscription(%__MODULE__{} = state, id) do
+    state
+    |> remove_listener(id)
+    |> remove_query(id)
   end
 
   @spec add_query(t, term, GenServer.from()) :: t

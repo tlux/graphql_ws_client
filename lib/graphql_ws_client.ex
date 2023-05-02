@@ -3,25 +3,25 @@ defmodule GraphQLWSClient do
 
   require Logger
 
-  alias GraphQLWSClient.{Config, Message, Options, SocketClosedError, State}
+  alias GraphQLWSClient.{Config, Message, SocketClosedError, State}
 
   @type client :: GenServer.server()
 
   @spec start_link(Keyword.t() | GenServer.options()) :: GenServer.on_start()
   def start_link(opts) do
-    {conn_opts, opts} =
+    {config, opts} =
       Keyword.split(
         opts,
-        [:url | Map.keys(Options.__struct__())]
+        [:url | Map.keys(Config.__struct__())]
       )
 
-    start_link(conn_opts, opts)
+    start_link(config, opts)
   end
 
   @spec start_link(Keyword.t() | map, GenServer.options()) ::
           GenServer.on_start()
-  def start_link(conn_opts, opts) do
-    Connection.start_link(__MODULE__, Options.new(conn_opts), opts)
+  def start_link(config, opts) do
+    Connection.start_link(__MODULE__, Config.new(config), opts)
   end
 
   @spec close(client) :: :ok
@@ -58,32 +58,25 @@ defmodule GraphQLWSClient do
   # Callbacks
 
   @impl true
-  def init(%Options{} = opts) do
-    {:connect, nil, %State{options: opts}}
+  def init(%Config{} = config) do
+    {:connect, nil, %State{config: config}}
   end
 
   @impl true
-  def connect(_info, %State{options: opts} = state) do
+  def connect(_info, %State{config: config} = state) do
     with {:connect, {:ok, pid}} <-
            {:connect,
             :gun.open(
-              String.to_charlist(opts.host),
-              opts.port,
+              String.to_charlist(config.host),
+              config.port,
               %{protocols: [:http]}
             )},
          {:connected, {:ok, _protocol}} <-
-           {:connected, :gun.await_up(pid, opts.connect_timeout)},
-         {:upgrade, stream_ref} <- {:upgrade, :gun.ws_upgrade(pid, opts.path)},
-         {:upgraded, :ok} <-
-           {:upgraded, wait_for_upgrade(opts.upgrade_timeout)},
-         {:init, :ok} <-
-           {:init,
-            init_connection(
-              pid,
-              stream_ref,
-              opts.init_payload,
-              opts.init_timeout
-            )} do
+           {:connected, :gun.await_up(pid, config.connect_timeout)},
+         {:upgrade, stream_ref} <-
+           {:upgrade, :gun.ws_upgrade(pid, config.path)},
+         {:upgraded, :ok} <- {:upgraded, await_upgrade(config.upgrade_timeout)},
+         {:init, :ok} <- {:init, init_connection(pid, stream_ref, config)} do
       {:ok,
        %{
          state
@@ -94,7 +87,7 @@ defmodule GraphQLWSClient do
     else
       {_, reason} ->
         Logger.error("Connection failed: #{inspect(reason)}")
-        {:backoff, opts.backoff_interval, state}
+        {:backoff, config.backoff_interval, state}
     end
   end
 
@@ -118,16 +111,6 @@ defmodule GraphQLWSClient do
   @impl true
   def terminate(_reason, %State{} = state) do
     close_connection(state)
-  end
-
-  defp close_connection(%State{monitor_ref: monitor_ref, pid: pid}) do
-    if monitor_ref do
-      Process.demonitor(monitor_ref)
-    end
-
-    if pid do
-      :ok = :gun.close(pid)
-    end
   end
 
   @impl true
@@ -187,14 +170,12 @@ defmodule GraphQLWSClient do
         {:gun_ws, _pid, _stream_ref, {:text, payload}},
         %State{} = state
       ) do
-    msg = decode_message(payload)
+    msg = decode_message(state.config.json_library, payload)
 
     state =
       case msg do
         %{"id" => id, "type" => "complete"} ->
-          state
-          |> State.remove_listener(id)
-          |> State.remove_query(id)
+          State.remove_subscription(state, id)
 
         %{"id" => id} ->
           dispatch(state, id, msg)
@@ -233,7 +214,7 @@ defmodule GraphQLWSClient do
     end
   end
 
-  defp wait_for_upgrade(timeout) do
+  defp await_upgrade(timeout) do
     receive do
       {:gun_upgrade, _pid, _stream_ref, ["websocket"], _headers} ->
         :ok
@@ -249,10 +230,10 @@ defmodule GraphQLWSClient do
     end
   end
 
-  defp init_connection(pid, stream_ref, init_payload, timeout) do
+  defp init_connection(pid, stream_ref, config) do
     push_message(pid, stream_ref, %{
       type: "connection_init",
-      payload: init_payload
+      payload: config.init_payload
     })
 
     receive do
@@ -260,7 +241,7 @@ defmodule GraphQLWSClient do
         {:error, {:socket_error, reason}}
 
       {:gun_ws, _pid, _stream_ref, {:text, payload}} ->
-        case decode_message(payload) do
+        case decode_message(config.json_library, payload) do
           %{"type" => "connection_ack"} ->
             :ok
 
@@ -271,20 +252,30 @@ defmodule GraphQLWSClient do
       {:gun_ws, _pid, _stream_ref, _msg} ->
         {:error, :unexpected_message}
     after
-      timeout ->
+      config.init_timeout ->
         {:error, :timeout}
     end
   end
 
-  defp decode_message(payload) do
-    Config.json_library().decode!(payload)
+  defp close_connection(%State{monitor_ref: monitor_ref, pid: pid}) do
+    if monitor_ref do
+      Process.demonitor(monitor_ref)
+    end
+
+    if pid do
+      :ok = :gun.close(pid)
+    end
   end
 
-  defp push_message(pid, stream_ref, msg) do
+  defp decode_message(json_library, payload) do
+    json_library.decode!(payload)
+  end
+
+  defp push_message(pid, stream_ref, json_library, msg) do
     :gun.ws_send(
       pid,
       stream_ref,
-      {:text, Config.json_library().encode!(msg)}
+      {:text, json_library.encode!(msg)}
     )
   end
 
