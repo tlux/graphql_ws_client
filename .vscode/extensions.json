@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "jakebecker.elixir-ls",
+    "florinpatrascu.vscode-elixir-snippets",
+    "benvp.vscode-hex-pm-intellisense"
+  ]
+}
