@@ -49,7 +49,9 @@ defmodule GraphQLWSClient.MixProject do
       {:dialyxir, "~> 1.3", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.16", only: :test},
       {:gun, "~> 2.0"},
-      {:mox, "~> 1.0", only: :test}
+      {:jason, "~> 1.4", optional: true},
+      {:mox, "~> 1.0", only: :test},
+      {:uuid, "~> 1.1"}
     ]
   end
 
