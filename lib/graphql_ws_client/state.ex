@@ -22,16 +22,17 @@ defmodule GraphQLWSClient.State do
   ]
 
   @spec fetch_subscription(t, term) ::
-          {:ok, {:listener, pid}} | {:ok, {:query, GenServer.from()}} | :error
-  def fetch_subscription(%__MODULE__{listeners: listeners}, id)
-      when is_map_key(listeners, id) do
-    {:ok, {:listener, Map.fetch!(listeners, id)}}
+          {:ok, {:query, GenServer.from()}}
+          | {:ok, {:listener, pid}}
+          | :error
+  def fetch_subscription(%__MODULE__{queries: queries}, id)
+      when is_map_key(queries, id) do
+    {:ok, {:query, Map.fetch!(queries, id)}}
   end
 
-  def fetch_subscription(%__MODULE__{queries: queries}, id) do
-    case Map.fetch(queries, id) do
-      {:ok, recipient} -> {:ok, {:query, recipient}}
-      :error -> :error
+  def fetch_subscription(%__MODULE__{listeners: listeners}, id) do
+    with {:ok, pid} <- Map.fetch(listeners, id) do
+      {:ok, {:listener, pid}}
     end
   end
 
@@ -50,7 +51,7 @@ defmodule GraphQLWSClient.State do
     listeners =
       state.listeners
       |> Enum.reject(fn
-        {_, ^pid} -> true
+        {_, {_, ^pid}} -> true
         _ -> false
       end)
       |> Map.new()

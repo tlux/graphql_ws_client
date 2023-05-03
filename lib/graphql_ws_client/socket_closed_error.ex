@@ -3,7 +3,7 @@ defmodule GraphQLWSClient.SocketClosedError do
 
   @type t :: %__MODULE__{code: nil | non_neg_integer, payload: String.t()}
 
-  def message(%__MODULE__{} = exception) do
-    "Socket closed (code #{exception.code})"
+  def message(%__MODULE__{}) do
+    "Socket closed"
   end
 end

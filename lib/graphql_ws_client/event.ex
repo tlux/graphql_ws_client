@@ -3,9 +3,13 @@ defmodule GraphQLWSClient.Event do
   A event for a subscription.
   """
 
-  defstruct [:subscription_id, :payload]
+  alias GraphQLWSClient.QueryError
 
-  def new(subscription_id, payload) do
-    %__MODULE__{subscription_id: subscription_id, payload: payload}
-  end
+  defstruct [:subscription_id, :data, :error]
+
+  @type t :: %__MODULE__{
+          subscription_id: GraphQLWSClient.subscription_id(),
+          data: any,
+          error: nil | QueryError.t()
+        }
 end
