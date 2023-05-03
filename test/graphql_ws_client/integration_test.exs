@@ -7,7 +7,8 @@ defmodule GraphQLWSClient.IntegrationTest do
   setup do
     client =
       start_supervised!(
-        {GraphQLWSClient, url: "ws://localhost:8080/subscriptions"},
+        {GraphQLWSClient,
+         url: "ws://localhost:8080/subscriptions", connect_timeout: 500},
         id: :graphql_ws_client
       )
 
@@ -74,7 +75,7 @@ defmodule GraphQLWSClient.IntegrationTest do
     @describetag :integration
 
     test "success", %{client: client} do
-      subscription_id =
+      {:ok, subscription_id} =
         GraphQLWSClient.subscribe(
           client,
           """
@@ -112,7 +113,7 @@ defmodule GraphQLWSClient.IntegrationTest do
     end
 
     test "error", %{client: client} do
-      subscription_id =
+      {:ok, subscription_id} =
         GraphQLWSClient.subscribe(
           client,
           """
@@ -139,7 +140,7 @@ defmodule GraphQLWSClient.IntegrationTest do
     @describetag :integration
 
     test "success", %{client: client} do
-      subscription_id =
+      {:ok, subscription_id} =
         GraphQLWSClient.subscribe(
           client,
           """

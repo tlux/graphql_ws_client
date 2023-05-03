@@ -218,7 +218,7 @@ defmodule GraphQLWSClient do
     id = UUID.uuid4()
     push_message(state, build_query(id, query, variables))
 
-    {:reply, id, State.add_listener(state, id, listener)}
+    {:reply, {:ok, id}, State.add_listener(state, id, listener)}
   end
 
   def handle_call(
