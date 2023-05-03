@@ -276,7 +276,7 @@ defmodule GraphQLWSClient do
         Connection.reply(recipient, {:ok, payload})
 
       {:ok, {:listener, listener}} ->
-        send(listener, %Event{subscription_id: id, data: payload})
+        send(listener, %Event{subscription_id: id, result: payload})
 
       :error ->
         Logger.info("Unexpected payload: #{payload}")

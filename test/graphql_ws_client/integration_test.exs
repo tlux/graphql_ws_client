@@ -92,7 +92,7 @@ defmodule GraphQLWSClient.IntegrationTest do
 
       assert_receive %Event{
         subscription_id: ^subscription_id,
-        data: event_result,
+        result: event_result,
         error: nil
       }
 
@@ -115,7 +115,7 @@ defmodule GraphQLWSClient.IntegrationTest do
 
       assert_receive %Event{
         subscription_id: ^subscription_id,
-        data: nil,
+        result: nil,
         error: %QueryError{errors: errors}
       }
 

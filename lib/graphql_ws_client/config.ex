@@ -19,12 +19,12 @@ defmodule GraphQLWSClient.Config do
     :host,
     :init_payload,
     :port,
-    {:backoff_interval, 3000},
-    {:connect_timeout, 5000},
-    {:init_timeout, 5000},
-    {:json_library, Jason},
-    {:path, "/"},
-    {:upgrade_timeout, 5000}
+    backoff_interval: 3000,
+    connect_timeout: 5000,
+    init_timeout: 5000,
+    json_library: Jason,
+    path: "/",
+    upgrade_timeout: 5000
   ]
 
   @spec new(Keyword.t() | map) :: t

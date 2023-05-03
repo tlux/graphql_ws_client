@@ -5,11 +5,11 @@ defmodule GraphQLWSClient.Event do
 
   alias GraphQLWSClient.QueryError
 
-  defstruct [:subscription_id, :data, :error]
+  defstruct [:subscription_id, :result, :error]
 
   @type t :: %__MODULE__{
           subscription_id: GraphQLWSClient.subscription_id(),
-          data: any,
+          result: nil | any,
           error: nil | QueryError.t()
         }
 end
