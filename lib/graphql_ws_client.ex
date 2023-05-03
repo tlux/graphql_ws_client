@@ -6,14 +6,14 @@ defmodule GraphQLWSClient do
   alias GraphQLWSClient.{Config, Event, QueryError, SocketClosedError, State}
 
   @type client :: GenServer.server()
-  @type error :: QueryError.t() | SocketClosedError.t()
   @type subscription_id :: String.t()
   @type query :: String.t()
 
   @callback start_link(GenServer.options()) :: GenServer.on_start()
-  @callback query(query, map) :: {:ok, any} | {:error, error}
+  @callback query(query, map) :: {:ok, any} | {:error, Exception.t()}
   @callback query!(query, map) :: any | no_return
-  @callback subscribe(query, map, pid) :: subscription_id
+  @callback subscribe(query, map, pid) ::
+              {:ok, subscription_id} | {:error, Exception.t()}
   @callback unsubscribe(subscription_id) :: :ok
 
   defmacro __using__(opts) do
@@ -88,7 +88,7 @@ defmodule GraphQLWSClient do
   @doc """
   Sends a GraphQL query or mutation to the websocket and returns the result.
   """
-  @spec query(client, query, map) :: {:ok, any} | {:error, error}
+  @spec query(client, query, map) :: {:ok, any} | {:error, Exception.t()}
   def query(client, query, variables \\ %{}) do
     Connection.call(client, {:query, query, variables})
   end
@@ -109,7 +109,8 @@ defmodule GraphQLWSClient do
   Sends a GraphQL subscription to the websocket and registers a listener process
   to retrieve events.
   """
-  @spec subscribe(client, query, map, pid) :: subscription_id
+  @spec subscribe(client, query, map, pid) ::
+          {:ok, subscription_id} | {:error, Exception.t()}
   def subscribe(client, query, variables \\ %{}, listener \\ self()) do
     Connection.call(client, {:subscribe, query, variables, listener})
   end
