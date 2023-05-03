@@ -5,22 +5,16 @@ defmodule GraphQLWSClient.IntegrationTest do
   alias GraphQLWSClient.QueryError
 
   setup do
-    client =
-      start_supervised!(
-        {GraphQLWSClient,
-         url: "ws://localhost:8080/subscriptions", connect_timeout: 500},
-        id: :graphql_ws_client
-      )
-
+    client = start_supervised!(TestGraphQLWSClient, id: :graphql_ws_client)
     {:ok, client: client}
   end
 
   describe "query" do
     @describetag :integration
 
-    test "success", %{client: client} do
+    test "success" do
       assert {:ok, result} =
-               GraphQLWSClient.query(client, """
+               TestGraphQLWSClient.query("""
                  query Posts {
                    posts {
                      id
@@ -33,10 +27,9 @@ defmodule GraphQLWSClient.IntegrationTest do
       assert %{"data" => %{"posts" => _}} = result
     end
 
-    test "error", %{client: client} do
+    test "error" do
       assert {:ok, %{"data" => nil, "errors" => errors}} =
-               GraphQLWSClient.query(
-                 client,
+               TestGraphQLWSClient.query(
                  """
                    mutation CreatePost($author: String!, $body: String!) {
                      createPost(author: $author, body: $body) {
@@ -52,10 +45,9 @@ defmodule GraphQLWSClient.IntegrationTest do
       assert [%{"message" => "Author is blank"}] = errors
     end
 
-    test "critical error", %{client: client} do
+    test "critical error" do
       assert {:error, %QueryError{errors: errors}} =
-               GraphQLWSClient.query(
-                 client,
+               TestGraphQLWSClient.query(
                  """
                    mutation CreatePost($author: String!, $body: String!) {
                      createPost(author: $author, body: $body) {
@@ -74,22 +66,18 @@ defmodule GraphQLWSClient.IntegrationTest do
   describe "subscribe" do
     @describetag :integration
 
-    test "success", %{client: client} do
+    test "success" do
       {:ok, subscription_id} =
-        GraphQLWSClient.subscribe(
-          client,
-          """
-            subscription PostCreated {
-              postCreated {
-                id
-              }
+        TestGraphQLWSClient.subscribe("""
+          subscription PostCreated {
+            postCreated {
+              id
             }
-          """
-        )
+          }
+        """)
 
       result =
-        GraphQLWSClient.query!(
-          client,
+        TestGraphQLWSClient.query!(
           """
             mutation CreatePost($author: String!, $body: String!) {
               createPost(author: $author, body: $body) {
@@ -112,18 +100,15 @@ defmodule GraphQLWSClient.IntegrationTest do
                result["data"]["createPost"]["id"]
     end
 
-    test "error", %{client: client} do
+    test "error" do
       {:ok, subscription_id} =
-        GraphQLWSClient.subscribe(
-          client,
-          """
-            subscription PostCreated {
-              postCreated {
-                i
-              }
+        TestGraphQLWSClient.subscribe("""
+          subscription PostCreated {
+            postCreated {
+              i
             }
-          """
-        )
+          }
+        """)
 
       assert_receive %Event{
         subscription_id: ^subscription_id,
@@ -139,24 +124,20 @@ defmodule GraphQLWSClient.IntegrationTest do
   describe "unsubscribe" do
     @describetag :integration
 
-    test "success", %{client: client} do
+    test "success" do
       {:ok, subscription_id} =
-        GraphQLWSClient.subscribe(
-          client,
-          """
-            subscription PostCreated {
-              postCreated {
-                id
-              }
+        TestGraphQLWSClient.subscribe("""
+          subscription PostCreated {
+            postCreated {
+              id
             }
-          """
-        )
+          }
+        """)
 
-      assert :ok = GraphQLWSClient.unsubscribe(client, subscription_id)
+      assert :ok = TestGraphQLWSClient.unsubscribe(subscription_id)
 
       result =
-        GraphQLWSClient.query!(
-          client,
+        TestGraphQLWSClient.query!(
           """
             mutation CreatePost($author: String!, $body: String!) {
               createPost(author: $author, body: $body) {

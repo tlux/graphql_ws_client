@@ -9,9 +9,16 @@ defmodule GraphQLWSClient do
   @type subscription_id :: String.t()
   @type query :: String.t()
 
+  @callback start_link() :: GenServer.on_start()
   @callback start_link(GenServer.options()) :: GenServer.on_start()
+  @callback query(query) :: {:ok, any} | {:error, Exception.t()}
   @callback query(query, map) :: {:ok, any} | {:error, Exception.t()}
+  @callback query!(query) :: any | no_return
   @callback query!(query, map) :: any | no_return
+  @callback subscribe(query) ::
+              {:ok, subscription_id} | {:error, Exception.t()}
+  @callback subscribe(query, map) ::
+              {:ok, subscription_id} | {:error, Exception.t()}
   @callback subscribe(query, map, pid) ::
               {:ok, subscription_id} | {:error, Exception.t()}
   @callback unsubscribe(subscription_id) :: :ok
@@ -19,7 +26,7 @@ defmodule GraphQLWSClient do
   defmacro __using__(opts) do
     otp_app = Keyword.fetch!(opts, :otp_app)
 
-    quote do
+    quote location: :keep do
       @config unquote(otp_app)
               |> Application.compile_env(__MODULE__, [])
               |> Config.new()
@@ -30,6 +37,15 @@ defmodule GraphQLWSClient do
           @config,
           Keyword.put_new(opts, :name, __MODULE__)
         )
+      end
+
+      @doc false
+      @spec child_spec(term) :: Supervisor.child_spec()
+      def child_spec(opts) do
+        %{
+          id: __MODULE__,
+          start: {__MODULE__, :start_link, [opts]}
+        }
       end
 
       @impl GraphQLWSClient
@@ -48,8 +64,8 @@ defmodule GraphQLWSClient do
       end
 
       @impl GraphQLWSClient
-      def unsubscribe(query, subscription_id) do
-        GraphQLWSClient.unsubscribe(__MODULE__, query, subscription_id)
+      def unsubscribe(subscription_id) do
+        GraphQLWSClient.unsubscribe(__MODULE__, subscription_id)
       end
     end
   end
