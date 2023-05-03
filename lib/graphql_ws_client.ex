@@ -8,6 +8,14 @@ defmodule GraphQLWSClient do
   @type client :: GenServer.server()
   @type error :: QueryError.t() | SocketClosedError.t()
   @type subscription_id :: String.t()
+  @type query :: String.t()
+
+  # TODO: For the macro stuff
+  @callback start_link(GenServer.options()) :: GenServer.on_start()
+  @callback query(query, map) :: {:ok, any} | {:error, error}
+  @callback query!(query, map) :: any | no_return
+  @callback subscribe(query, map, pid) :: subscription_id
+  @callback unsubscribe(subscription_id) :: :ok
 
   @doc """
   Starts a graphql-ws client.
@@ -43,7 +51,7 @@ defmodule GraphQLWSClient do
   @doc """
   Sends a GraphQL query or mutation to the websocket and returns the result.
   """
-  @spec query(client, String.t(), map) :: {:ok, any} | {:error, error}
+  @spec query(client, query, map) :: {:ok, any} | {:error, error}
   def query(client, query, variables \\ %{}) do
     Connection.call(client, {:query, query, variables})
   end
@@ -52,7 +60,7 @@ defmodule GraphQLWSClient do
   Sends a GraphQL query or mutation to the websocket and returns the result.
   Raises on error.
   """
-  @spec query!(client, String.t(), map) :: any | no_return
+  @spec query!(client, query, map) :: any | no_return
   def query!(client, query, variables \\ %{}) do
     case query(client, query, variables) do
       {:ok, result} -> result
@@ -62,13 +70,16 @@ defmodule GraphQLWSClient do
 
   @doc """
   Sends a GraphQL subscription to the websocket and registers a listener process
-  to retrieve messages.
+  to retrieve events.
   """
-  @spec subscribe(client, String.t(), map, pid) :: subscription_id
+  @spec subscribe(client, query, map, pid) :: subscription_id
   def subscribe(client, query, variables \\ %{}, listener \\ self()) do
     Connection.call(client, {:subscribe, query, variables, listener})
   end
 
+  @doc """
+  Removes a subscription.
+  """
   @spec unsubscribe(client, subscription_id) :: :ok
   def unsubscribe(client, subscription_id) do
     Connection.call(client, {:unsubscribe, subscription_id})
