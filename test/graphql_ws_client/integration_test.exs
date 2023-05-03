@@ -7,12 +7,7 @@ defmodule GraphQLWSClient.IntegrationTest do
   setup do
     client =
       start_supervised!(
-        {GraphQLWSClient,
-         url: "ws://localhost:4000/subscriptions",
-         init_payload: %{
-           "token" =>
-             "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJ0ZW1wbGVyX2NsYW4iLCJleHAiOjE2ODM2NzE5MjAsImlhdCI6MTY4MzA2NzEyMCwiaXNzIjoidGVtcGxlcl9jbGFuIiwianRpIjoiNzg5MWNjOTEtMzQyYS00MWFmLWJjOWYtZDgwYjE0ODFmZDIyIiwibmJmIjoxNjgzMDY3MTE5LCJzdWIiOiI4NDg3ZDcyOS1lMGM3LTQxZGUtYmIxOC00MjZkNWM4OGIyODUiLCJ0eXAiOiJhY2Nlc3MifQ.EnyNWvmLS0i-haCWSJSbICpejo5kqVBixAInXoIV9uNBKV0APqhHagrcF4E8iYKb0MhGcLOA5HzZtEq-J8S8Mw"
-         }},
+        {GraphQLWSClient, url: "ws://localhost:8080/subscriptions"},
         id: :graphql_ws_client
       )
 
@@ -26,30 +21,49 @@ defmodule GraphQLWSClient.IntegrationTest do
       assert {:ok, result} =
                GraphQLWSClient.query(client, """
                  query Posts {
-                   posts(first: 10) {
-                     edges {
-                       node {
-                         id
-                         author
-                         body
-                       }
-                     }
+                   posts {
+                     id
+                     author
+                     body
                    }
                  }
                """)
 
-      assert %{"data" => %{"posts" => %{"edges" => _}}} = result
+      assert %{"data" => %{"posts" => _}} = result
     end
 
     test "error", %{client: client} do
-      assert {:error, %QueryError{errors: errors}} =
-               GraphQLWSClient.query(client, """
-                 query Posts {
-                   posts(first: 10) {
-                     foo
+      assert {:ok, %{"data" => nil, "errors" => errors}} =
+               GraphQLWSClient.query(
+                 client,
+                 """
+                   mutation CreatePost($author: String!, $body: String!) {
+                     createPost(author: $author, body: $body) {
+                       id
+                       author
+                       body
+                     }
                    }
-                 }
-               """)
+                 """,
+                 %{"author" => "", "body" => "Lorem Ipsum"}
+               )
+
+      assert [%{"message" => "Author is blank"}] = errors
+    end
+
+    test "critical error", %{client: client} do
+      assert {:error, %QueryError{errors: errors}} =
+               GraphQLWSClient.query(
+                 client,
+                 """
+                   mutation CreatePost($author: String!, $body: String!) {
+                     createPost(author: $author, body: $body) {
+                       foo
+                     }
+                   }
+                 """,
+                 %{"author" => "Author", "body" => "Lorem Ipsum"}
+               )
 
       assert [%{"message" => message}] = errors
       assert message =~ "Cannot query field"
@@ -76,19 +90,16 @@ defmodule GraphQLWSClient.IntegrationTest do
         GraphQLWSClient.query!(
           client,
           """
-            mutation CreatePost($input: CreatePostInput!) {
-              createPost(input: $input) {
-                successful
-                result {
-                  id
-                }
+            mutation CreatePost($author: String!, $body: String!) {
+              createPost(author: $author, body: $body) {
+                id
               }
             }
           """,
-          %{"input" => %{"author" => "Tobi", body: "Lorem Ipsum"}}
+          %{"author" => "Tobi", "body" => "Lorem Ipsum"}
         )
 
-      assert result["data"]["createPost"]["successful"] == true
+      assert result["data"]["createPost"]
 
       assert_receive %Event{
         subscription_id: ^subscription_id,
@@ -97,7 +108,7 @@ defmodule GraphQLWSClient.IntegrationTest do
       }
 
       assert event_result["data"]["postCreated"]["id"] ==
-               result["data"]["createPost"]["result"]["id"]
+               result["data"]["createPost"]["id"]
     end
 
     test "error", %{client: client} do
@@ -125,6 +136,8 @@ defmodule GraphQLWSClient.IntegrationTest do
   end
 
   describe "unsubscribe" do
+    @describetag :integration
+
     test "success", %{client: client} do
       subscription_id =
         GraphQLWSClient.subscribe(
@@ -144,16 +157,16 @@ defmodule GraphQLWSClient.IntegrationTest do
         GraphQLWSClient.query!(
           client,
           """
-            mutation CreatePost($input: CreatePostInput!) {
-              createPost(input: $input) {
-                successful
+            mutation CreatePost($author: String!, $body: String!) {
+              createPost(author: $author, body: $body) {
+                id
               }
             }
           """,
-          %{"input" => %{"author" => "Tobi", body: "Lorem Ipsum"}}
+          %{"author" => "Tobi", "body" => "Lorem Ipsum"}
         )
 
-      assert result["data"]["createPost"]["successful"] == true
+      assert result["data"]["createPost"]
 
       refute_receive %Event{}
     end

@@ -1,0 +1,9 @@
+version: "3.9"
+
+services:
+  demo:
+    container_name: graphql_ws_demo
+    image: registry.gitlab.com/tlux/graphql-ws-demo
+    restart: unless-stopped
+    ports:
+      - 8080:4000
