@@ -27,3 +27,6 @@ graphql_ws_client-*.tar
 
 # Ignore ElixirLS files
 /.elixir_ls
+
+# Ignore PLTs
+/priv/plts

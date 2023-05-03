@@ -7,7 +7,7 @@ defmodule GraphQLWSClient.SocketClosedError do
 
   @type t :: %__MODULE__{code: nil | non_neg_integer, payload: String.t()}
 
-  def message(%__MODULE__{}) do
+  def message(_) do
     "GraphQL websocket closed"
   end
 end

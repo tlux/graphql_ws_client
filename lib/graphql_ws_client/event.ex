@@ -7,9 +7,15 @@ defmodule GraphQLWSClient.Event do
 
   defstruct [:subscription_id, :result, :error]
 
-  @type t :: %__MODULE__{
-          subscription_id: GraphQLWSClient.subscription_id(),
-          result: nil | any,
-          error: nil | QueryError.t()
-        }
+  @type t ::
+          %__MODULE__{
+            subscription_id: GraphQLWSClient.subscription_id(),
+            result: any,
+            error: nil
+          }
+          | %__MODULE__{
+              subscription_id: GraphQLWSClient.subscription_id(),
+              result: nil,
+              error: QueryError.t()
+            }
 end

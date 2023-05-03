@@ -10,12 +10,49 @@ defmodule GraphQLWSClient do
   @type subscription_id :: String.t()
   @type query :: String.t()
 
-  # TODO: For the macro stuff
   @callback start_link(GenServer.options()) :: GenServer.on_start()
   @callback query(query, map) :: {:ok, any} | {:error, error}
   @callback query!(query, map) :: any | no_return
   @callback subscribe(query, map, pid) :: subscription_id
   @callback unsubscribe(subscription_id) :: :ok
+
+  defmacro __using__(opts) do
+    otp_app = Keyword.fetch!(opts, :otp_app)
+
+    quote do
+      @config unquote(otp_app)
+              |> Application.compile_env(__MODULE__, [])
+              |> Config.new()
+
+      @impl GraphQLWSClient
+      def start_link(opts \\ []) do
+        GraphQLWSClient.start_link(
+          @config,
+          Keyword.put_new(opts, :name, __MODULE__)
+        )
+      end
+
+      @impl GraphQLWSClient
+      def query(query, variables \\ %{}) do
+        GraphQLWSClient.query(__MODULE__, query, variables)
+      end
+
+      @impl GraphQLWSClient
+      def query!(query, variables \\ %{}) do
+        GraphQLWSClient.query!(__MODULE__, query, variables)
+      end
+
+      @impl GraphQLWSClient
+      def subscribe(query, variables \\ %{}, listener \\ self()) do
+        GraphQLWSClient.subscribe(__MODULE__, query, variables, listener)
+      end
+
+      @impl GraphQLWSClient
+      def unsubscribe(query, subscription_id) do
+        GraphQLWSClient.unsubscribe(__MODULE__, query, subscription_id)
+      end
+    end
+  end
 
   @doc """
   Starts a graphql-ws client.
@@ -106,15 +143,15 @@ defmodule GraphQLWSClient do
   def connect(_info, %State{config: config} = state) do
     with {:connect, {:ok, pid}} <-
            {:connect,
-            :gun.open(
+            config.ws_client.open(
               String.to_charlist(config.host),
               config.port,
               %{protocols: [:http]}
             )},
          {:connected, {:ok, _protocol}} <-
-           {:connected, :gun.await_up(pid, config.connect_timeout)},
+           {:connected, config.ws_client.await_up(pid, config.connect_timeout)},
          {:upgrade, stream_ref} <-
-           {:upgrade, :gun.ws_upgrade(pid, config.path)},
+           {:upgrade, config.ws_client.ws_upgrade(pid, config.path)},
          {:upgraded, :ok} <- {:upgraded, await_upgrade(config.upgrade_timeout)},
          {:init, :ok} <- {:init, init_connection(pid, stream_ref, config)} do
       {:ok,
@@ -301,7 +338,7 @@ defmodule GraphQLWSClient do
   end
 
   defp init_connection(pid, stream_ref, %Config{} = config) do
-    push_message(pid, stream_ref, config.json_library, %{
+    push_message(config.ws_client, pid, stream_ref, config.json_library, %{
       type: "connection_init",
       payload: config.init_payload
     })
@@ -324,13 +361,17 @@ defmodule GraphQLWSClient do
     end
   end
 
-  defp close_connection(%State{monitor_ref: monitor_ref, pid: pid}) do
+  defp close_connection(%State{
+         config: config,
+         monitor_ref: monitor_ref,
+         pid: pid
+       }) do
     if monitor_ref do
       Process.demonitor(monitor_ref)
     end
 
     if pid do
-      :ok = :gun.close(pid)
+      :ok = config.ws_client.close(pid)
     end
   end
 
@@ -340,6 +381,7 @@ defmodule GraphQLWSClient do
 
   defp push_message(state, msg) do
     push_message(
+      state.config.ws_client,
       state.pid,
       state.stream_ref,
       state.config.json_library,
@@ -347,8 +389,8 @@ defmodule GraphQLWSClient do
     )
   end
 
-  defp push_message(pid, stream_ref, json_library, msg) do
-    :gun.ws_send(pid, stream_ref, {:text, json_library.encode!(msg)})
+  defp push_message(ws_client, pid, stream_ref, json_library, msg) do
+    ws_client.ws_send(pid, stream_ref, {:text, json_library.encode!(msg)})
   end
 
   defp build_query(id, query, variables) do

@@ -9,8 +9,9 @@ defmodule GraphQLWSClient.Config do
           init_timeout: timeout,
           json_library: module,
           path: String.t(),
-          port: non_neg_integer,
-          upgrade_timeout: timeout
+          port: :inet.port_number(),
+          upgrade_timeout: timeout,
+          ws_client: module
         }
 
   @enforce_keys [:host, :port]
@@ -24,7 +25,8 @@ defmodule GraphQLWSClient.Config do
     init_timeout: 5000,
     json_library: Jason,
     path: "/",
-    upgrade_timeout: 5000
+    upgrade_timeout: 5000,
+    ws_client: :gun
   ]
 
   @spec new(Keyword.t() | map) :: t
