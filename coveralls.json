@@ -1,0 +1,9 @@
+{
+  "skip_files": [
+    "deps",
+    "test/support"
+  ],
+  "terminal_options": {
+    "file_column_width": 80
+  }
+}

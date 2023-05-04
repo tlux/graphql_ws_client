@@ -45,6 +45,10 @@ defmodule GraphQLWSClient.Config do
             url
             |> parse_url!()
             |> Map.take([:host, :port, :path])
+            |> Map.update!(:path, fn
+              nil -> "/"
+              path -> path
+            end)
             |> Map.to_list()
 
           Keyword.merge(opts, url_opts)
@@ -69,11 +73,7 @@ defmodule GraphQLWSClient.Config do
     end
 
     if uri.host == nil || uri.host == "" do
-      raise ArgumentError, "URL is missing host"
-    end
-
-    if uri.port == nil do
-      raise ArgumentError, "URL is missing port"
+      raise ArgumentError, "URL has empty host"
     end
 
     uri

@@ -37,7 +37,7 @@ defmodule GraphQLWSClient.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:crypto, :logger]
+      extra_applications: [:logger]
     ]
   end
 
