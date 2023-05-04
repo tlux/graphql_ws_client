@@ -26,7 +26,7 @@ defmodule GraphQLWSClient do
   defmacro __using__(opts) do
     otp_app = Keyword.fetch!(opts, :otp_app)
 
-    quote location: :keep do
+    quote do
       @config unquote(otp_app)
               |> Application.compile_env(__MODULE__, [])
               |> Config.new()
