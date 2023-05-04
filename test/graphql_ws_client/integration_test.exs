@@ -1,8 +1,7 @@
 defmodule GraphQLWSClient.IntegrationTest do
   use ExUnit.Case
 
-  alias GraphQLWSClient.Event
-  alias GraphQLWSClient.QueryError
+  alias GraphQLWSClient.{Event, QueryError}
 
   setup do
     client = start_supervised!(TestGraphQLWSClient, id: :graphql_ws_client)

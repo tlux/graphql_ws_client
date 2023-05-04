@@ -3,7 +3,7 @@ defmodule GraphQLWSClient do
 
   require Logger
 
-  alias GraphQLWSClient.{Config, Event, QueryError, SocketClosedError, State}
+  alias GraphQLWSClient.{Config, Event, QueryError, SocketError, State}
 
   @type client :: GenServer.server()
   @type subscription_id :: String.t()
@@ -26,15 +26,21 @@ defmodule GraphQLWSClient do
   defmacro __using__(opts) do
     otp_app = Keyword.fetch!(opts, :otp_app)
 
-    quote do
-      @config unquote(otp_app)
-              |> Application.compile_env(__MODULE__, [])
-              |> Config.new()
+    quote location: :keep do
+      @behaviour unquote(__MODULE__)
 
-      @impl GraphQLWSClient
+      @doc false
+      @spec __config__() :: Config.t()
+      def __config__ do
+        unquote(otp_app)
+        |> Application.get_env(__MODULE__, [])
+        |> Config.new()
+      end
+
+      @impl unquote(__MODULE__)
       def start_link(opts \\ []) do
-        GraphQLWSClient.start_link(
-          @config,
+        unquote(__MODULE__).start_link(
+          __config__(),
           Keyword.put_new(opts, :name, __MODULE__)
         )
       end
@@ -48,24 +54,24 @@ defmodule GraphQLWSClient do
         }
       end
 
-      @impl GraphQLWSClient
+      @impl unquote(__MODULE__)
       def query(query, variables \\ %{}) do
-        GraphQLWSClient.query(__MODULE__, query, variables)
+        unquote(__MODULE__).query(__MODULE__, query, variables)
       end
 
-      @impl GraphQLWSClient
+      @impl unquote(__MODULE__)
       def query!(query, variables \\ %{}) do
-        GraphQLWSClient.query!(__MODULE__, query, variables)
+        unquote(__MODULE__).query!(__MODULE__, query, variables)
       end
 
-      @impl GraphQLWSClient
+      @impl unquote(__MODULE__)
       def subscribe(query, variables \\ %{}, listener \\ self()) do
-        GraphQLWSClient.subscribe(__MODULE__, query, variables, listener)
+        unquote(__MODULE__).subscribe(__MODULE__, query, variables, listener)
       end
 
-      @impl GraphQLWSClient
+      @impl unquote(__MODULE__)
       def unsubscribe(subscription_id) do
-        GraphQLWSClient.unsubscribe(__MODULE__, subscription_id)
+        unquote(__MODULE__).unsubscribe(__MODULE__, subscription_id)
       end
     end
   end
@@ -213,7 +219,7 @@ defmodule GraphQLWSClient do
   end
 
   def handle_call({:query, _, _}, _from, %State{pid: nil} = state) do
-    {:reply, {:error, %SocketClosedError{}}, state}
+    {:reply, {:error, %SocketError{}}, state}
   end
 
   def handle_call({:query, query, variables}, from, %State{} = state) do
@@ -224,7 +230,7 @@ defmodule GraphQLWSClient do
   end
 
   def handle_call({:subscribe, _, _, _}, _from, %State{pid: nil} = state) do
-    {:reply, {:error, %SocketClosedError{}}, state}
+    {:reply, {:error, %SocketError{}}, state}
   end
 
   def handle_call(
@@ -293,10 +299,10 @@ defmodule GraphQLWSClient do
     error =
       case msg do
         {:close, code, payload} ->
-          %SocketClosedError{code: code, payload: payload}
+          %SocketError{code: code, payload: payload}
 
         {:close, payload} ->
-          %SocketClosedError{payload: payload}
+          %SocketError{payload: payload}
       end
 
     Enum.each(state.queries, fn {_, from} ->

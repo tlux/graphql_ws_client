@@ -1,6 +1,6 @@
-defmodule GraphQLWSClient.SocketClosedError do
+defmodule GraphQLWSClient.SocketError do
   @moduledoc """
-  Exception that indicates that the socket was closed.
+  Exception that indicates a socket error.
   """
 
   defexception [:code, :payload]
@@ -8,6 +8,6 @@ defmodule GraphQLWSClient.SocketClosedError do
   @type t :: %__MODULE__{code: nil | non_neg_integer, payload: String.t()}
 
   def message(_) do
-    "GraphQL websocket closed"
+    "GraphQL websocket error"
   end
 end
