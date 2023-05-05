@@ -234,13 +234,13 @@ defmodule GraphQLWSClient do
         monitor_ref = Process.monitor(conn.pid)
         {:ok, State.put_conn(state, conn, monitor_ref)}
 
-      error ->
+      {:error, error} ->
         case info do
           {:open, from} ->
-            Connection.reply(from, error)
+            Connection.reply(from, {:error, error})
 
-          reason ->
-            Logger.error("Connection failed: #{inspect(reason)}")
+          _ ->
+            Logger.error(Exception.message(error))
         end
 
         {:backoff, config.backoff_interval, state}
