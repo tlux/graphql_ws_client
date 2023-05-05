@@ -5,10 +5,10 @@ defmodule GraphQLWSClient.State do
 
   @type t :: %__MODULE__{
           config: Config.t(),
-          conn: Conn.t(),
+          conn: nil | Conn.t(),
           connected?: boolean,
           listeners: %{optional(term) => pid},
-          monitor_ref: reference,
+          monitor_ref: nil | reference,
           queries: %{optional(term) => GenServer.from()}
         }
 
