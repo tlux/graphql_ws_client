@@ -3,6 +3,8 @@ defmodule GraphQLWSClient do
 
   require Logger
 
+  alias GraphQLWSClient.Conn
+  alias GraphQLWSClient.Message
   alias GraphQLWSClient.{Config, Event, QueryError, SocketError, State}
 
   @default_timeout 5000
@@ -223,31 +225,15 @@ defmodule GraphQLWSClient do
 
   @impl true
   def connect(info, %State{config: config} = state) do
-    with {:ok, pid} <-
-           config.ws_client.open(
-             String.to_charlist(config.host),
-             config.port,
-             %{protocols: [:http]}
-           ),
-         {:ok, _protocol} <-
-           config.ws_client.await_up(pid, config.connect_timeout),
-         stream_ref = config.ws_client.ws_upgrade(pid, config.path),
-         :ok <- await_upgrade(config.upgrade_timeout),
-         :ok <- init_connection(pid, stream_ref, config),
-         :ok <- await_connection_ack(config) do
-      with {:open, from} <- info do
-        Connection.reply(from, :ok)
-      end
+    case config.driver.connect(config) do
+      {:ok, %Conn{} = conn} ->
+        with {:open, from} <- info do
+          Connection.reply(from, :ok)
+        end
 
-      {:ok,
-       %{
-         state
-         | connected?: true,
-           pid: pid,
-           monitor_ref: Process.monitor(pid),
-           stream_ref: stream_ref
-       }}
-    else
+        monitor_ref = Process.monitor(conn.pid)
+        {:ok, State.put_conn(state, conn, monitor_ref)}
+
       error ->
         case info do
           {:open, from} ->
@@ -298,7 +284,11 @@ defmodule GraphQLWSClient do
 
   def handle_call({:query, query, variables}, from, %State{} = state) do
     id = UUID.uuid4()
-    push_message(state, build_query(id, query, variables))
+
+    state.config.driver.push_message(
+      state.conn,
+      build_query(id, query, variables)
+    )
 
     {:noreply, State.add_query(state, id, from)}
   end
@@ -317,7 +307,11 @@ defmodule GraphQLWSClient do
         %State{} = state
       ) do
     id = UUID.uuid4()
-    push_message(state, build_query(id, query, variables))
+
+    state.config.driver.push_message(
+      state.conn,
+      build_query(id, query, variables)
+    )
 
     {:reply, {:ok, id}, State.add_listener(state, id, listener)}
   end
@@ -327,7 +321,10 @@ defmodule GraphQLWSClient do
         _from,
         %State{} = state
       ) do
-    push_message(state, %{id: subscription_id, type: "complete"})
+    state.config.driver.push_message(state.conn, %{
+      id: subscription_id,
+      type: "complete"
+    })
 
     {:reply, :ok, State.remove_listener(state, subscription_id)}
   end
@@ -335,7 +332,7 @@ defmodule GraphQLWSClient do
   @impl true
   def handle_info(
         {:DOWN, _ref, :process, pid, _reason},
-        %State{pid: pid} = state
+        %State{conn: %Conn{pid: pid}} = state
       ) do
     Logger.warn("Websocket process went down: #{inspect(pid)}")
 
@@ -351,72 +348,22 @@ defmodule GraphQLWSClient do
     {:noreply, State.remove_listener_by_pid(state, pid)}
   end
 
-  def handle_info({:gun_error, _pid, _stream_ref, reason}, %State{} = state) do
-    Enum.each(state.queries, fn {_, from} ->
-      Connection.reply(
-        from,
-        {:error, %SocketError{cause: :result, details: %{reason: reason}}}
-      )
-    end)
-
-    {:disconnect, :socket_error, State.reset_queries(state)}
+  def handle_info(msg, %State{} = state) do
+    case state.config.driver.handle_message(state.conn, msg) do
+      {:ok, msg} -> handle_message(msg, state)
+      {:error, error} -> handle_error(error, state)
+      :ignore -> {:noreply, state}
+    end
   end
 
-  def handle_info(
-        {:gun_ws, _pid, _stream_ref, {:text, text}},
-        %State{} = state
-      ) do
-    state =
-      case decode_message(state.config.json_library, text) do
-        %{"type" => "complete", "id" => id} ->
-          State.remove_subscription(state, id)
-
-        %{"type" => type, "id" => id, "payload" => payload} ->
-          dispatch(state, type, id, payload)
-          state
-
-        _ ->
-          state
-      end
-
-    {:noreply, state}
+  defp handle_message(%Message{type: :complete, id: id}, %State{} = state) do
+    {:noreply, State.remove_subscription(state, id)}
   end
 
-  def handle_info({:gun_ws, _pid, _stream_ref, :close}, %State{} = state) do
-    handle_close_frame(state, %SocketError{cause: :closed})
-  end
-
-  def handle_info(
-        {:gun_ws, _pid, _stream_ref, {:close, payload}},
-        %State{} = state
-      ) do
-    handle_close_frame(state, %SocketError{
-      cause: :closed,
-      details: %{payload: payload}
-    })
-  end
-
-  def handle_info(
-        {:gun_ws, _pid, _stream_ref, {:close, code, payload}},
-        %State{} = state
-      ) do
-    handle_close_frame(state, %SocketError{
-      cause: :closed,
-      details: %{code: code, payload: payload}
-    })
-  end
-
-  def handle_info(_msg, state), do: {:noreply, state}
-
-  defp handle_close_frame(%State{} = state, error) do
-    Enum.each(state.queries, fn {_, from} ->
-      Connection.reply(from, {:error, error})
-    end)
-
-    {:disconnect, :socket_closed, State.reset_queries(state)}
-  end
-
-  defp dispatch(%State{} = state, "error", id, payload) do
+  defp handle_message(
+         %Message{type: :error, id: id, payload: payload},
+         %State{} = state
+       ) do
     error = %QueryError{errors: payload}
 
     case State.fetch_subscription(state, id) do
@@ -428,11 +375,15 @@ defmodule GraphQLWSClient do
 
       :error ->
         Logger.info("Unexpected payload: #{payload}")
-        :noop
     end
+
+    {:noreply, state}
   end
 
-  defp dispatch(%State{} = state, "next", id, payload) do
+  defp handle_message(
+         %Message{type: :next, id: id, payload: payload},
+         %State{} = state
+       ) do
     case State.fetch_subscription(state, id) do
       {:ok, {:query, recipient}} ->
         Connection.reply(recipient, {:ok, payload})
@@ -442,50 +393,17 @@ defmodule GraphQLWSClient do
 
       :error ->
         Logger.info("Unexpected payload: #{payload}")
-        :noop
     end
+
+    {:noreply, state}
   end
 
-  defp await_upgrade(timeout) do
-    receive do
-      {:gun_upgrade, _pid, _stream_ref, ["websocket"], _headers} ->
-        :ok
+  defp handle_error(error, %State{} = state) do
+    Enum.each(state.queries, fn {_, from} ->
+      Connection.reply(from, {:error, error})
+    end)
 
-      {:gun_response, _pid, _stream_ref, _is_fin, status, _headers} ->
-        {:error, %SocketError{cause: :result, details: %{status: status}}}
-
-      {:gun_error, _pid, _stream_ref, reason} ->
-        {:error, %SocketError{cause: :result, details: %{reason: reason}}}
-    after
-      timeout ->
-        {:error, %SocketError{cause: :timeout}}
-    end
-  end
-
-  defp init_connection(pid, stream_ref, %Config{} = config) do
-    push_message(config.ws_client, pid, stream_ref, config.json_library, %{
-      type: "connection_init",
-      payload: config.init_payload
-    })
-  end
-
-  defp await_connection_ack(config) do
-    receive do
-      {:gun_error, _pid, _stream_ref, reason} ->
-        {:error, %SocketError{cause: :result, details: %{reason: reason}}}
-
-      {:gun_ws, _pid, _stream_ref, {:text, msg}} ->
-        case decode_message(config.json_library, msg) do
-          %{"type" => "connection_ack"} -> :ok
-          _ -> {:error, %SocketError{cause: :result}}
-        end
-
-      {:gun_ws, _pid, _stream_ref, _msg} ->
-        {:error, %SocketError{cause: :result}}
-    after
-      config.init_timeout ->
-        {:error, %SocketError{cause: :timeout}}
-    end
+    {:disconnect, :socket_error, State.reset_queries(state)}
   end
 
   defp close_connection(%State{connected?: false} = state), do: state
@@ -494,31 +412,12 @@ defmodule GraphQLWSClient do
          %State{
            config: config,
            monitor_ref: monitor_ref,
-           pid: pid
+           conn: conn
          } = state
        ) do
     Process.demonitor(monitor_ref)
-    :ok = config.ws_client.close(pid)
-
-    %{state | connected?: false, pid: nil, monitor_ref: nil, stream_ref: nil}
-  end
-
-  defp decode_message(json_library, msg) do
-    json_library.decode!(msg)
-  end
-
-  defp push_message(state, msg) do
-    push_message(
-      state.config.ws_client,
-      state.pid,
-      state.stream_ref,
-      state.config.json_library,
-      msg
-    )
-  end
-
-  defp push_message(ws_client, pid, stream_ref, json_library, msg) do
-    ws_client.ws_send(pid, stream_ref, {:text, json_library.encode!(msg)})
+    config.driver.disconnect(conn)
+    State.reset_conn(state)
   end
 
   defp build_query(id, query, variables) do

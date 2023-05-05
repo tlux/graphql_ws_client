@@ -19,11 +19,6 @@ defmodule GraphQLWSClientTest do
     ws_client: WSClientMock
   }
 
-  setup do
-    stub(WSClientMock, :close, fn _ -> :ok end)
-    :ok
-  end
-
   setup :set_mox_from_context
   setup :verify_on_exit!
 

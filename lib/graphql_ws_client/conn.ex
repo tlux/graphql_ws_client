@@ -1,5 +1,13 @@
 defmodule GraphQLWSClient.Conn do
-  defstruct [:config, :conn]
+  @moduledoc false
 
-  @type t :: %__MODULE__{config: Config.t(), conn: any}
+  alias GraphQLWSClient.Config
+
+  defstruct [:json_library, :pid, :stream_ref]
+
+  @type t :: %__MODULE__{
+          json_library: module,
+          pid: pid,
+          stream_ref: reference
+        }
 end

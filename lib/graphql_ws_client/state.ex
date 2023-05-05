@@ -1,27 +1,45 @@
 defmodule GraphQLWSClient.State do
   @moduledoc false
 
-  alias GraphQLWSClient.Config
+  alias GraphQLWSClient.{Config, Conn}
 
   @type t :: %__MODULE__{
           config: Config.t(),
+          conn: Conn.t(),
           connected?: boolean,
           listeners: %{optional(term) => pid},
           monitor_ref: reference,
-          pid: pid,
-          queries: %{optional(term) => GenServer.from()},
-          stream_ref: reference
+          queries: %{optional(term) => GenServer.from()}
         }
 
   defstruct [
     :config,
+    :conn,
     :monitor_ref,
-    :pid,
-    :stream_ref,
     connected?: false,
     listeners: %{},
     queries: %{}
   ]
+
+  @spec put_conn(t, Conn.t(), reference) :: t
+  def put_conn(%__MODULE__{} = state, conn, monitor_ref) do
+    %{
+      state
+      | connected?: true,
+        conn: conn,
+        monitor_ref: monitor_ref
+    }
+  end
+
+  @spec reset_conn(t) :: t
+  def reset_conn(%__MODULE__{} = state) do
+    %{
+      state
+      | connected?: false,
+        conn: nil,
+        monitor_ref: nil
+    }
+  end
 
   @spec fetch_subscription(t, term) ::
           {:ok, {:query, GenServer.from()}}

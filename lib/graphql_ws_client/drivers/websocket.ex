@@ -1,8 +1,9 @@
 defmodule GraphQLWSClient.Drivers.Websocket do
+  @moduledoc false
+
   @behaviour GraphQLWSClient.Driver
 
-  alias GraphQLWSClient.{Config, SocketError}
-  alias GraphQLWSClient.Drivers.Websocket.Conn
+  alias GraphQLWSClient.{Config, Conn, Message, SocketError}
 
   @impl true
   def connect(%Config{} = config) do
@@ -19,7 +20,12 @@ defmodule GraphQLWSClient.Drivers.Websocket do
          :ok <- await_upgrade(config.upgrade_timeout),
          :ok <- init_connection(pid, stream_ref, config),
          :ok <- await_connection_ack(config) do
-      {:ok, %Conn{pid: pid, stream_ref: stream_ref}}
+      {:ok,
+       %Conn{
+         json_library: config.json_library,
+         pid: pid,
+         stream_ref: stream_ref
+       }}
     else
       {:open, _} ->
         {:error, %SocketError{cause: :connect}}
@@ -57,7 +63,7 @@ defmodule GraphQLWSClient.Drivers.Websocket do
   end
 
   defp init_connection(pid, stream_ref, %Config{} = config) do
-    push_message(pid, stream_ref, config, %{
+    push_message(pid, stream_ref, config.json_library, %{
       type: "connection_init",
       payload: config.init_payload
     })
@@ -82,7 +88,51 @@ defmodule GraphQLWSClient.Drivers.Websocket do
     end
   end
 
-  defp push_message(pid, stream_ref, config, msg) do
-    :gun.ws_send(pid, stream_ref, {:text, config.json_library.encode!(msg)})
+  @impl true
+  def push_message(%Conn{} = conn, msg) do
+    push_message(conn.pid, conn.stream_ref, conn.json_library, msg)
   end
+
+  defp push_message(pid, stream_ref, json_library, msg) do
+    :gun.ws_send(pid, stream_ref, {:text, json_library.encode!(msg)})
+  end
+
+  @impl true
+  def handle_message(_conn, {:gun_error, _pid, _stream_ref, reason}) do
+    {:error, %SocketError{cause: :result, details: %{reason: reason}}}
+  end
+
+  def handle_message(conn, {:gun_ws, _pid, _stream_ref, {:text, text}}) do
+    case conn.json_library.decode(text) do
+      {:ok, %{"type" => "complete", "id" => id}} ->
+        {:ok, %Message{type: :complete, id: id}}
+
+      {:ok, %{"type" => "next", "id" => id, "payload" => payload}} ->
+        {:ok, %Message{type: :next, id: id, payload: payload}}
+
+      {:ok, %{"type" => "error", "id" => id, "payload" => payload}} ->
+        {:ok, %Message{type: :error, id: id, payload: payload}}
+
+      _ ->
+        :ignore
+    end
+  end
+
+  def handle_message(_conn, {:gun_ws, _pid, _stream_ref, :close}) do
+    {:error, %SocketError{cause: :closed}}
+  end
+
+  def handle_message(_conn, {:gun_ws, _pid, _stream_ref, {:close, payload}}) do
+    {:error, %SocketError{cause: :closed, details: %{payload: payload}}}
+  end
+
+  def handle_message(
+        _conn,
+        {:gun_ws, _pid, _stream_ref, {:close, code, payload}}
+      ) do
+    {:error,
+     %SocketError{cause: :closed, details: %{code: code, payload: payload}}}
+  end
+
+  def handle_message(_conn, _msg), do: :ignore
 end
