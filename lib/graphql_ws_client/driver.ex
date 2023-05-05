@@ -1,16 +1,16 @@
 defmodule GraphQLWSClient.Driver do
-  @moduledoc false
+  @moduledoc """
+  A behaviour that defines function to implement own backends.
+  """
 
-  alias GraphQLWSClient.{Config, Message, SocketError}
+  alias GraphQLWSClient.{Config, Conn, Message, SocketError}
 
-  @type conn :: any
+  @callback connect(Config.t()) :: {:ok, Conn.t()} | {:error, SocketError.t()}
 
-  @callback connect(Config.t()) :: {:ok, conn} | {:error, SocketError.t()}
+  @callback disconnect(Conn.t()) :: :ok
 
-  @callback disconnect(conn) :: :ok
+  @callback push_message(Conn.t(), msg :: any) :: :ok
 
-  @callback push_message(conn, msg :: any) :: :ok
-
-  @callback handle_message(conn, msg :: any) ::
+  @callback handle_message(Conn.t(), msg :: any) ::
               {:ok, Message.t()} | {:error, SocketError.t()} | :ignore
 end

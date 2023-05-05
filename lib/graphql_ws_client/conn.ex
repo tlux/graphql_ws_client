@@ -1,7 +1,7 @@
 defmodule GraphQLWSClient.Conn do
   @moduledoc false
 
-  alias GraphQLWSClient.Config
+  @enforce_keys [:json_library, :pid, :stream_ref]
 
   defstruct [:json_library, :pid, :stream_ref]
 

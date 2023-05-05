@@ -8,14 +8,14 @@ defmodule GraphQLWSClient.ConfigTest do
       assert Config.new(host: "example.com", port: 80) == %Config{
                backoff_interval: 3000,
                connect_timeout: 5000,
+               driver: GraphQLWSClient.Drivers.Websocket,
                host: "example.com",
                init_payload: nil,
                init_timeout: 5000,
                json_library: Jason,
                path: "/",
                port: 80,
-               upgrade_timeout: 5000,
-               ws_client: :gun
+               upgrade_timeout: 5000
              }
     end
 
@@ -51,14 +51,14 @@ defmodule GraphQLWSClient.ConfigTest do
       opts = [
         backoff_interval: 1000,
         connect_timeout: 2000,
+        driver: SomeDriver,
         host: "example.com",
         init_payload: %{"foo" => "bar"},
         init_timeout: 3000,
         json_library: SomeJSONLibrary,
         path: "/subscriptions",
         port: 8080,
-        upgrade_timeout: 4000,
-        ws_client: SomeWSClient
+        upgrade_timeout: 4000
       ]
 
       assert Config.new(opts) == struct!(Config, opts)
