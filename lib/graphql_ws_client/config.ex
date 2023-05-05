@@ -29,7 +29,9 @@ defmodule GraphQLWSClient.Config do
     ws_client: :gun
   ]
 
-  @spec new(Keyword.t() | map) :: t
+  @spec new(t | Keyword.t() | map) :: t
+  def new(%__MODULE__{} = config), do: config
+
   def new(opts) when is_map(opts) do
     opts |> Map.to_list() |> new()
   end

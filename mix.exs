@@ -50,6 +50,7 @@ defmodule GraphQLWSClient.MixProject do
       {:excoveralls, "~> 0.16", only: :test},
       {:gun, "~> 2.0"},
       {:jason, "~> 1.4", optional: true},
+      {:liveness, "~> 1.0", only: :test},
       {:mox, "~> 1.0", only: :test},
       {:uuid, "~> 1.1"}
     ]

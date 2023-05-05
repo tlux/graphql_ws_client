@@ -79,7 +79,12 @@ defmodule GraphQLWSClient do
   @doc """
   Starts a graphql-ws client.
   """
-  @spec start_link(Keyword.t() | GenServer.options()) :: GenServer.on_start()
+  @spec start_link(Config.t() | Keyword.t() | map | GenServer.options()) ::
+          GenServer.on_start()
+  def start_link(%Config{} = config) do
+    start_link(config, [])
+  end
+
   def start_link(opts) do
     {config, opts} =
       Keyword.split(
@@ -93,10 +98,18 @@ defmodule GraphQLWSClient do
   @doc """
   Starts a graphql-ws client using the given config and `GenServer` options.
   """
-  @spec start_link(Keyword.t() | map, GenServer.options()) ::
+  @spec start_link(Config.t() | Keyword.t() | map, GenServer.options()) ::
           GenServer.on_start()
   def start_link(config, opts) do
     Connection.start_link(__MODULE__, Config.new(config), opts)
+  end
+
+  @doc """
+  Indicates whether the client is connected to the Websocket.
+  """
+  @spec connected?(client) :: boolean
+  def connected?(client) do
+    Connection.call(client, :connected?)
   end
 
   @doc """
@@ -216,6 +229,10 @@ defmodule GraphQLWSClient do
   @impl true
   def handle_call(:close, from, %State{} = state) do
     {:disconnect, {:close, from}, state}
+  end
+
+  def handle_call(:connected?, _from, %State{pid: pid} = state) do
+    {:reply, !is_nil(pid), state}
   end
 
   def handle_call({:query, _, _}, _from, %State{pid: nil} = state) do
