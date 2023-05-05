@@ -2,9 +2,9 @@ defmodule GraphQLWSClient.WSClient do
   @moduledoc false
 
   @callback open(
-              charlist,
               :inet.hostname() | :inet.ip_address(),
-              :inet.port_number()
+              :inet.port_number(),
+              :gun.opts()
             ) :: {:ok, pid} | {:error, any}
 
   @callback await_up(pid, timeout) ::

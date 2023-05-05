@@ -1,17 +1,14 @@
 defmodule GraphQLWSClientTest do
   use ExUnit.Case
 
-  import Liveness
   import Mox
 
-  alias GraphQLWSClient.{Config, WSClientMock}
-
-  setup :set_mox_from_context
-  setup :verify_on_exit!
+  alias GraphQLWSClient.{Config, SocketError, WSClientMock}
 
   @config %Config{
     backoff_interval: 1000,
     connect_timeout: 500,
+    connect_on_start: false,
     host: "example.com",
     init_payload: %{"token" => "__token__"},
     init_timeout: 2000,
@@ -22,11 +19,23 @@ defmodule GraphQLWSClientTest do
     ws_client: WSClientMock
   }
 
-  describe "start_link/2" do
-    test "success" do
-      ws_pid = spawn(fn -> nil end)
-      stream_ref = make_ref()
+  setup do
+    stub(WSClientMock, :close, fn _ -> :ok end)
+    :ok
+  end
 
+  setup :set_mox_from_context
+  setup :verify_on_exit!
+
+  setup do
+    ws_pid = spawn_link(fn -> Process.sleep(:infinity) end)
+    stream_ref = make_ref()
+
+    {:ok, ws_pid: ws_pid, stream_ref: stream_ref}
+  end
+
+  describe "open/1" do
+    test "success", %{ws_pid: ws_pid, stream_ref: stream_ref} do
       init_payload =
         Jason.encode!(%{
           "type" => "connection_init",
@@ -58,15 +67,24 @@ defmodule GraphQLWSClientTest do
         :ok
       end)
 
-      # |> expect(:close, fn ^ws_pid -> :ok end)
-
       assert {:ok, client} = start_supervised({GraphQLWSClient, @config})
+      assert GraphQLWSClient.connected?(client) == false
+      assert GraphQLWSClient.open(client) == :ok
+      assert GraphQLWSClient.connected?(client) == true
+    end
 
-      assert eventually(fn ->
-               GraphQLWSClient.connected?(client)
-             end)
+    test "upgrade timeout", %{ws_pid: ws_pid, stream_ref: stream_ref} do
+      WSClientMock
+      |> expect(:open, fn _, _, _ -> {:ok, ws_pid} end)
+      |> expect(:await_up, fn ^ws_pid, _ -> {:ok, :http} end)
+      |> expect(:ws_upgrade, fn ^ws_pid, _ -> stream_ref end)
 
-      IO.inspect(client)
+      config = %{@config | upgrade_timeout: 200}
+
+      assert {:ok, client} = start_supervised({GraphQLWSClient, config})
+
+      assert GraphQLWSClient.open(client) ==
+               {:error, %SocketError{cause: :timeout}}
     end
   end
 end

@@ -3,7 +3,9 @@ defmodule GraphQLWSClient.Config do
 
   @type t :: %__MODULE__{
           backoff_interval: non_neg_integer,
+          connect_on_start: boolean,
           connect_timeout: timeout,
+          driver: module,
           host: String.t(),
           init_payload: any,
           init_timeout: timeout,
@@ -21,7 +23,9 @@ defmodule GraphQLWSClient.Config do
     :init_payload,
     :port,
     backoff_interval: 3000,
+    connect_on_start: true,
     connect_timeout: 5000,
+    driver: GraphQLWSClient.Drivers.Websocket,
     init_timeout: 5000,
     json_library: Jason,
     path: "/",

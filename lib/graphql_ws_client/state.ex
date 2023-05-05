@@ -5,18 +5,20 @@ defmodule GraphQLWSClient.State do
 
   @type t :: %__MODULE__{
           config: Config.t(),
-          pid: pid,
-          monitor_ref: reference,
-          stream_ref: reference,
+          connected?: boolean,
           listeners: %{optional(term) => pid},
-          queries: %{optional(term) => GenServer.from()}
+          monitor_ref: reference,
+          pid: pid,
+          queries: %{optional(term) => GenServer.from()},
+          stream_ref: reference
         }
 
   defstruct [
     :config,
-    :pid,
     :monitor_ref,
+    :pid,
     :stream_ref,
+    connected?: false,
     listeners: %{},
     queries: %{}
   ]
@@ -74,5 +76,10 @@ defmodule GraphQLWSClient.State do
     state
     |> remove_listener(id)
     |> remove_query(id)
+  end
+
+  @spec reset_queries(t) :: t
+  def reset_queries(%__MODULE__{} = state) do
+    %{state | queries: %{}}
   end
 end

@@ -5,12 +5,16 @@ defmodule GraphQLWSClient do
 
   alias GraphQLWSClient.{Config, Event, QueryError, SocketError, State}
 
+  @default_timeout 5000
+
   @type client :: GenServer.server()
   @type subscription_id :: String.t()
   @type query :: String.t()
 
   @callback start_link() :: GenServer.on_start()
   @callback start_link(GenServer.options()) :: GenServer.on_start()
+  @callback open() :: :ok | {:error, Exception.t()}
+  @callback close() :: :ok
   @callback query(query) :: {:ok, any} | {:error, Exception.t()}
   @callback query(query, map) :: {:ok, any} | {:error, Exception.t()}
   @callback query!(query) :: any | no_return
@@ -55,23 +59,44 @@ defmodule GraphQLWSClient do
       end
 
       @impl unquote(__MODULE__)
-      def query(query, variables \\ %{}) do
-        unquote(__MODULE__).query(__MODULE__, query, variables)
+      def open(timeout \\ unquote(@default_timeout)) do
+        unquote(__MODULE__).open(__MODULE__, timeout)
       end
 
       @impl unquote(__MODULE__)
-      def query!(query, variables \\ %{}) do
-        unquote(__MODULE__).query!(__MODULE__, query, variables)
+      def close(timeout \\ unquote(@default_timeout)) do
+        unquote(__MODULE__).close(__MODULE__, timeout)
       end
 
       @impl unquote(__MODULE__)
-      def subscribe(query, variables \\ %{}, listener \\ self()) do
-        unquote(__MODULE__).subscribe(__MODULE__, query, variables, listener)
+      def query(query, variables \\ %{}, timeout \\ unquote(@default_timeout)) do
+        unquote(__MODULE__).query(__MODULE__, query, variables, timeout)
       end
 
       @impl unquote(__MODULE__)
-      def unsubscribe(subscription_id) do
-        unquote(__MODULE__).unsubscribe(__MODULE__, subscription_id)
+      def query!(query, variables \\ %{}, timeout \\ unquote(@default_timeout)) do
+        unquote(__MODULE__).query!(__MODULE__, query, variables, timeout)
+      end
+
+      @impl unquote(__MODULE__)
+      def subscribe(
+            query,
+            variables \\ %{},
+            listener \\ self(),
+            timeout \\ unquote(@default_timeout)
+          ) do
+        unquote(__MODULE__).subscribe(
+          __MODULE__,
+          query,
+          variables,
+          listener,
+          timeout
+        )
+      end
+
+      @impl unquote(__MODULE__)
+      def unsubscribe(subscription_id, timeout \\ unquote(@default_timeout)) do
+        unquote(__MODULE__).unsubscribe(__MODULE__, subscription_id, timeout)
       end
     end
   end
@@ -107,34 +132,43 @@ defmodule GraphQLWSClient do
   @doc """
   Indicates whether the client is connected to the Websocket.
   """
-  @spec connected?(client) :: boolean
-  def connected?(client) do
-    Connection.call(client, :connected?)
+  @spec connected?(client, timeout) :: boolean
+  def connected?(client, timeout \\ @default_timeout) do
+    Connection.call(client, :connected?, timeout)
+  end
+
+  @doc """
+  Opens the connection to the websocket.
+  """
+  @spec open(client, timeout) :: :ok | {:error, Exception.t()}
+  def open(client, timeout \\ @default_timeout) do
+    Connection.call(client, :open, timeout)
   end
 
   @doc """
   Closes the connection to the websocket.
   """
-  @spec close(client) :: :ok
-  def close(client) do
-    Connection.call(client, :close)
+  @spec close(client, timeout) :: :ok
+  def close(client, timeout \\ @default_timeout) do
+    Connection.call(client, :close, timeout)
   end
 
   @doc """
   Sends a GraphQL query or mutation to the websocket and returns the result.
   """
-  @spec query(client, query, map) :: {:ok, any} | {:error, Exception.t()}
-  def query(client, query, variables \\ %{}) do
-    Connection.call(client, {:query, query, variables})
+  @spec query(client, query, map, timeout) ::
+          {:ok, any} | {:error, Exception.t()}
+  def query(client, query, variables \\ %{}, timeout \\ @default_timeout) do
+    Connection.call(client, {:query, query, variables}, timeout)
   end
 
   @doc """
   Sends a GraphQL query or mutation to the websocket and returns the result.
   Raises on error.
   """
-  @spec query!(client, query, map) :: any | no_return
-  def query!(client, query, variables \\ %{}) do
-    case query(client, query, variables) do
+  @spec query!(client, query, map, timeout) :: any | no_return
+  def query!(client, query, variables \\ %{}, timeout \\ @default_timeout) do
+    case query(client, query, variables, timeout) do
       {:ok, result} -> result
       {:error, error} -> raise error
     end
@@ -144,18 +178,24 @@ defmodule GraphQLWSClient do
   Sends a GraphQL subscription to the websocket and registers a listener process
   to retrieve events.
   """
-  @spec subscribe(client, query, map, pid) ::
+  @spec subscribe(client, query, map, pid, timeout) ::
           {:ok, subscription_id} | {:error, Exception.t()}
-  def subscribe(client, query, variables \\ %{}, listener \\ self()) do
-    Connection.call(client, {:subscribe, query, variables, listener})
+  def subscribe(
+        client,
+        query,
+        variables \\ %{},
+        listener \\ self(),
+        timeout \\ @default_timeout
+      ) do
+    Connection.call(client, {:subscribe, query, variables, listener}, timeout)
   end
 
   @doc """
   Removes a subscription.
   """
-  @spec unsubscribe(client, subscription_id) :: :ok
-  def unsubscribe(client, subscription_id) do
-    Connection.call(client, {:unsubscribe, subscription_id})
+  @spec unsubscribe(client, subscription_id, timeout) :: :ok
+  def unsubscribe(client, subscription_id, timeout \\ @default_timeout) do
+    Connection.call(client, {:unsubscribe, subscription_id}, timeout)
   end
 
   @doc false
@@ -172,52 +212,65 @@ defmodule GraphQLWSClient do
   @impl true
   def init(%Config{} = config) do
     Process.flag(:trap_exit, true)
-    {:connect, nil, %State{config: config}}
+    state = %State{config: config}
+
+    if config.connect_on_start do
+      {:connect, :init, state}
+    else
+      {:ok, state}
+    end
   end
 
   @impl true
-  def connect(_info, %State{config: config} = state) do
-    with {:connect, {:ok, pid}} <-
-           {:connect,
-            config.ws_client.open(
-              String.to_charlist(config.host),
-              config.port,
-              %{protocols: [:http]}
-            )},
-         {:connected, {:ok, _protocol}} <-
-           {:connected, config.ws_client.await_up(pid, config.connect_timeout)},
-         {:upgrade, stream_ref} <-
-           {:upgrade, config.ws_client.ws_upgrade(pid, config.path)},
-         {:upgraded, :ok} <- {:upgraded, await_upgrade(config.upgrade_timeout)},
-         {:init, :ok} <- {:init, init_connection(pid, stream_ref, config)} do
+  def connect(info, %State{config: config} = state) do
+    with {:ok, pid} <-
+           config.ws_client.open(
+             String.to_charlist(config.host),
+             config.port,
+             %{protocols: [:http]}
+           ),
+         {:ok, _protocol} <-
+           config.ws_client.await_up(pid, config.connect_timeout),
+         stream_ref = config.ws_client.ws_upgrade(pid, config.path),
+         :ok <- await_upgrade(config.upgrade_timeout),
+         :ok <- init_connection(pid, stream_ref, config),
+         :ok <- await_connection_ack(config) do
+      with {:open, from} <- info do
+        Connection.reply(from, :ok)
+      end
+
       {:ok,
        %{
          state
-         | pid: pid,
+         | connected?: true,
+           pid: pid,
            monitor_ref: Process.monitor(pid),
            stream_ref: stream_ref
        }}
     else
-      {_, reason} ->
-        Logger.error("Connection failed: #{inspect(reason)}")
+      error ->
+        case info do
+          {:open, from} ->
+            Connection.reply(from, error)
+
+          reason ->
+            Logger.error("Connection failed: #{inspect(reason)}")
+        end
+
         {:backoff, config.backoff_interval, state}
     end
   end
 
   @impl true
+  def disconnect({:close, from}, %State{} = state) do
+    state = close_connection(state)
+    Connection.reply(from, :ok)
+    {:noconnect, state}
+  end
+
   def disconnect(info, %State{} = state) do
-    close_connection(state)
-
-    state = %{state | pid: nil, monitor_ref: nil, stream_ref: nil}
-
-    case info do
-      {:close, from} ->
-        Connection.reply(from, :ok)
-
-      reason ->
-        Logger.error("Disconnected: #{inspect(reason)}")
-    end
-
+    state = close_connection(state)
+    Logger.error("Disconnected: #{inspect(info)}")
     {:connect, :reconnect, state}
   end
 
@@ -227,16 +280,20 @@ defmodule GraphQLWSClient do
   end
 
   @impl true
+  def handle_call(:open, from, %State{} = state) do
+    {:connect, {:open, from}, state}
+  end
+
   def handle_call(:close, from, %State{} = state) do
     {:disconnect, {:close, from}, state}
   end
 
-  def handle_call(:connected?, _from, %State{pid: pid} = state) do
-    {:reply, !is_nil(pid), state}
+  def handle_call(:connected?, _from, %State{connected?: connected?} = state) do
+    {:reply, connected?, state}
   end
 
-  def handle_call({:query, _, _}, _from, %State{pid: nil} = state) do
-    {:reply, {:error, %SocketError{}}, state}
+  def handle_call({:query, _, _}, _from, %State{connected?: false} = state) do
+    {:reply, {:error, %SocketError{cause: :closed}}, state}
   end
 
   def handle_call({:query, query, variables}, from, %State{} = state) do
@@ -246,8 +303,12 @@ defmodule GraphQLWSClient do
     {:noreply, State.add_query(state, id, from)}
   end
 
-  def handle_call({:subscribe, _, _, _}, _from, %State{pid: nil} = state) do
-    {:reply, {:error, %SocketError{}}, state}
+  def handle_call(
+        {:subscribe, _, _, _},
+        _from,
+        %State{connected?: false} = state
+      ) do
+    {:reply, {:error, %SocketError{cause: :closed}}, state}
   end
 
   def handle_call(
@@ -277,7 +338,12 @@ defmodule GraphQLWSClient do
         %State{pid: pid} = state
       ) do
     Logger.warn("Websocket process went down: #{inspect(pid)}")
-    {:disconnect, :socket_process_down, state}
+
+    Enum.each(state.queries, fn {_, from} ->
+      Connection.reply(from, {:error, %SocketError{cause: :closed}})
+    end)
+
+    {:disconnect, :socket_down, State.reset_queries(state)}
   end
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, %State{} = state) do
@@ -286,15 +352,22 @@ defmodule GraphQLWSClient do
   end
 
   def handle_info({:gun_error, _pid, _stream_ref, reason}, %State{} = state) do
-    {:disconnect, {:socket_error, reason}, state}
+    Enum.each(state.queries, fn {_, from} ->
+      Connection.reply(
+        from,
+        {:error, %SocketError{cause: :result, details: %{reason: reason}}}
+      )
+    end)
+
+    {:disconnect, :socket_error, State.reset_queries(state)}
   end
 
   def handle_info(
-        {:gun_ws, _pid, _stream_ref, {:text, msg}},
+        {:gun_ws, _pid, _stream_ref, {:text, text}},
         %State{} = state
       ) do
     state =
-      case decode_message(state.config.json_library, msg) do
+      case decode_message(state.config.json_library, text) do
         %{"type" => "complete", "id" => id} ->
           State.remove_subscription(state, id)
 
@@ -309,27 +382,39 @@ defmodule GraphQLWSClient do
     {:noreply, state}
   end
 
+  def handle_info({:gun_ws, _pid, _stream_ref, :close}, %State{} = state) do
+    handle_close_frame(state, %SocketError{cause: :closed})
+  end
+
   def handle_info(
-        {:gun_ws, _pid, _stream_ref, msg},
+        {:gun_ws, _pid, _stream_ref, {:close, payload}},
         %State{} = state
       ) do
-    error =
-      case msg do
-        {:close, code, payload} ->
-          %SocketError{code: code, payload: payload}
+    handle_close_frame(state, %SocketError{
+      cause: :closed,
+      details: %{payload: payload}
+    })
+  end
 
-        {:close, payload} ->
-          %SocketError{payload: payload}
-      end
+  def handle_info(
+        {:gun_ws, _pid, _stream_ref, {:close, code, payload}},
+        %State{} = state
+      ) do
+    handle_close_frame(state, %SocketError{
+      cause: :closed,
+      details: %{code: code, payload: payload}
+    })
+  end
 
+  def handle_info(_msg, state), do: {:noreply, state}
+
+  defp handle_close_frame(%State{} = state, error) do
     Enum.each(state.queries, fn {_, from} ->
       Connection.reply(from, {:error, error})
     end)
 
-    {:disconnect, :socket_closed, %{state | queries: %{}}}
+    {:disconnect, :socket_closed, State.reset_queries(state)}
   end
-
-  def handle_info(_msg, state), do: {:noreply, state}
 
   defp dispatch(%State{} = state, "error", id, payload) do
     error = %QueryError{errors: payload}
@@ -366,14 +451,14 @@ defmodule GraphQLWSClient do
       {:gun_upgrade, _pid, _stream_ref, ["websocket"], _headers} ->
         :ok
 
-      {:gun_response, _pid, _stream_ref, _, status, _headers} ->
-        {:error, status}
+      {:gun_response, _pid, _stream_ref, _is_fin, status, _headers} ->
+        {:error, %SocketError{cause: :result, details: %{status: status}}}
 
       {:gun_error, _pid, _stream_ref, reason} ->
-        {:error, reason}
+        {:error, %SocketError{cause: :result, details: %{reason: reason}}}
     after
       timeout ->
-        {:error, :timeout}
+        {:error, %SocketError{cause: :timeout}}
     end
   end
 
@@ -382,37 +467,40 @@ defmodule GraphQLWSClient do
       type: "connection_init",
       payload: config.init_payload
     })
+  end
 
+  defp await_connection_ack(config) do
     receive do
       {:gun_error, _pid, _stream_ref, reason} ->
-        {:error, {:socket_error, reason}}
+        {:error, %SocketError{cause: :result, details: %{reason: reason}}}
 
       {:gun_ws, _pid, _stream_ref, {:text, msg}} ->
         case decode_message(config.json_library, msg) do
           %{"type" => "connection_ack"} -> :ok
-          _ -> {:error, :unexpected_message}
+          _ -> {:error, %SocketError{cause: :result}}
         end
 
       {:gun_ws, _pid, _stream_ref, _msg} ->
-        {:error, :unexpected_message}
+        {:error, %SocketError{cause: :result}}
     after
       config.init_timeout ->
-        {:error, :timeout}
+        {:error, %SocketError{cause: :timeout}}
     end
   end
 
-  defp close_connection(%State{
-         config: config,
-         monitor_ref: monitor_ref,
-         pid: pid
-       }) do
-    if monitor_ref do
-      Process.demonitor(monitor_ref)
-    end
+  defp close_connection(%State{connected?: false} = state), do: state
 
-    if pid do
-      :ok = config.ws_client.close(pid)
-    end
+  defp close_connection(
+         %State{
+           config: config,
+           monitor_ref: monitor_ref,
+           pid: pid
+         } = state
+       ) do
+    Process.demonitor(monitor_ref)
+    :ok = config.ws_client.close(pid)
+
+    %{state | connected?: false, pid: nil, monitor_ref: nil, stream_ref: nil}
   end
 
   defp decode_message(json_library, msg) do
