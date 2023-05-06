@@ -5,6 +5,10 @@ defmodule GraphQLWSClient.Driver do
 
   alias GraphQLWSClient.{Config, Conn, Message, SocketError}
 
+  @doc """
+  Optional callback that prepares the `:opts` stored in the `#{inspect(Conn)}`.
+  Can be used to set default values.
+  """
   @callback init(opts :: map) :: map
 
   @doc """

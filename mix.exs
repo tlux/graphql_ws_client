@@ -27,10 +27,12 @@ defmodule GraphQLWSClient.MixProject do
   def package do
     [
       description:
-        "A client for connecting with Websockets following the " <>
+        "A client for connecting with GraphQL websockets following the " <>
           "graphql-ws conventions.",
       licenses: ["MIT"],
-      links: %{}
+      links: %{
+        "GitHub" => "https://github.com/tlux/graphql_ws_client"
+      }
     ]
   end
 
@@ -46,11 +48,11 @@ defmodule GraphQLWSClient.MixProject do
     [
       {:connection, "~> 1.1"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:excoveralls, "~> 0.16", only: :test, runtime: false},
+      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:dialyxir, "~> 1.3", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.16", only: :test},
-      {:gun, "~> 2.0"},
+      {:gun, "~> 2.0", optional: true},
       {:jason, "~> 1.4", optional: true},
-      {:liveness, "~> 1.0", only: :test},
       {:mox, "~> 1.0", only: :test},
       {:uuid, "~> 1.1"}
     ]

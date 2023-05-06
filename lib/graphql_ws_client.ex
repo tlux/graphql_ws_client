@@ -1,4 +1,48 @@
 defmodule GraphQLWSClient do
+  @moduledoc """
+  A client for connecting to GraphQL websockets that are implemented following
+  the [graphql-ws](https://github.com/enisdenjo/graphql-ws) conventions.
+
+  ## Example
+
+      iex> client = GraphQLWSClient.start_link(url: "ws://localhost:4000/socket")
+      ...>
+      ...> {:ok, subscription_id} = GraphQLWSClient.subscribe(
+      ...>   client,
+      ...>   "subscription PostCreated { ... }"
+      ...> )
+      ...>
+      ...> {:ok, _} = GraphQLWSClient.query(
+      ...>   client,
+      ...>   "mutation CreatePost { ... }"
+      ...> )
+      ...>
+      ...> receive do
+      ...>   %GraphQLWSClient.Event{} = event ->
+      ...>     IO.inspect(event)
+      ...> end
+      ...>
+      ...> GraphQLClient.close(client)
+
+  ## Custom Client
+
+  If you want to run the client as part of a supervision tree in your
+  application, you can also `use GraphQLWSClient` to create your own client.
+
+      defmodule MyClient do
+        use GraphQLWSClient, otp_app: :my_app
+      end
+
+  Then, you can configure your client using a config file:
+
+      import Config
+
+      config :my_app, MyClient,
+        url: "ws://localhost:4000/socket"
+
+  See `GraphQLWSClient.Config.new/1` for a list of available options.
+  """
+
   use Connection
 
   require Logger
@@ -17,8 +61,19 @@ defmodule GraphQLWSClient do
 
   @default_timeout 5000
 
+  @typedoc """
+  Type for a client process.
+  """
   @type client :: GenServer.server()
+
+  @typedoc """
+  Type for a subscription ID.
+  """
   @type subscription_id :: String.t()
+
+  @typedoc """
+  Type for a query, mutation or subscription string.
+  """
   @type query :: String.t()
 
   defmacro __using__(opts) do
@@ -99,6 +154,11 @@ defmodule GraphQLWSClient do
 
   @doc """
   Starts a graphql-ws client.
+
+  ## Options
+
+  See `GraphQLWSClient.Config.new/1` for a list of available options.
+  Additionally, you may pass `t:GenServer.options/0`.
   """
   @spec start_link(Config.t() | Keyword.t() | map | GenServer.options()) ::
           GenServer.on_start()
@@ -118,6 +178,12 @@ defmodule GraphQLWSClient do
 
   @doc """
   Starts a graphql-ws client using the given config and `GenServer` options.
+
+  ## Options
+
+  The first argument accept options as specified in
+  `GraphQLWSClient.Config.new/1`.
+  The second argument accepts `t:GenServer.options/0`.
   """
   @spec start_link(Config.t() | Keyword.t() | map, GenServer.options()) ::
           GenServer.on_start()
@@ -151,6 +217,15 @@ defmodule GraphQLWSClient do
 
   @doc """
   Sends a GraphQL query or mutation to the websocket and returns the result.
+
+  ## Example
+
+      iex> GraphQLWSClient.query(
+      ...>   client,
+      ...>   "query GetPost($id: ID!) { post(id: $id) { body } }",
+      ...>   %{"id" => 1337}
+      ...> )
+      {:ok, %{"data" => %{"posts" => %{"body" => "Lorem Ipsum"}}}}
   """
   @spec query(client, query, map, timeout) ::
           {:ok, any} | {:error, Exception.t()}
@@ -161,6 +236,15 @@ defmodule GraphQLWSClient do
   @doc """
   Sends a GraphQL query or mutation to the websocket and returns the result.
   Raises on error.
+
+  ## Example
+
+      iex> GraphQLWSClient.query!(
+      ...>   client,
+      ...>   "query GetPost($id: ID!) { post(id: $id) { body } }",
+      ...>   %{"id" => 1337}
+      ...> )
+      %{"data" => %{"posts" => %{"body" => "Lorem Ipsum"}}}
   """
   @spec query!(client, query, map, timeout) :: any | no_return
   def query!(client, query, variables \\ %{}, timeout \\ @default_timeout) do
@@ -173,6 +257,19 @@ defmodule GraphQLWSClient do
   @doc """
   Sends a GraphQL subscription to the websocket and registers a listener process
   to retrieve events.
+
+  ## Example
+
+      iex> GraphQLWSClient.subscribe(
+      ...>   client,
+      ...>   \"""
+      ...>     subscription CommentAdded($postId: ID!) {
+      ...>       commentAdded(postId: $postId) { body }
+      ...>     }
+      ...>   \""",
+      ...>   %{"postId" => 1337}
+      ...> )
+      {:ok, #{inspect(UUID.uuid4())}}
   """
   @spec subscribe(client, query, map, pid, timeout) ::
           {:ok, subscription_id} | {:error, Exception.t()}
@@ -188,6 +285,11 @@ defmodule GraphQLWSClient do
 
   @doc """
   Removes a subscription.
+
+  ## Example
+
+      iex> GraphQLWSClient.unsubscribe(client, #{inspect(UUID.uuid4())})
+      :ok
   """
   @spec unsubscribe(client, subscription_id, timeout) :: :ok
   def unsubscribe(client, subscription_id, timeout \\ @default_timeout) do

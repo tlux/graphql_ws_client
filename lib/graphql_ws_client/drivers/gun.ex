@@ -1,5 +1,7 @@
 defmodule GraphQLWSClient.Drivers.Gun do
-  @moduledoc false
+  @moduledoc """
+  A driver using the `:gun` library to connect to the GraphQL websocket.
+  """
 
   @behaviour GraphQLWSClient.Driver
 

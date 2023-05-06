@@ -1,5 +1,8 @@
 defmodule GraphQLWSClient.Conn do
-  @moduledoc false
+  @moduledoc """
+  A struct passed to the used driver that contains information about the current
+  connection.
+  """
 
   alias GraphQLWSClient.Config
 
