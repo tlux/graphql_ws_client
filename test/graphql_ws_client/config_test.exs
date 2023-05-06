@@ -5,18 +5,21 @@ defmodule GraphQLWSClient.ConfigTest do
 
   describe "new/1" do
     test "minimal config" do
-      assert Config.new(host: "example.com", port: 80) == %Config{
-               backoff_interval: 3000,
-               connect_timeout: 5000,
-               driver: GraphQLWSClient.Drivers.Gun,
-               host: "example.com",
-               init_payload: nil,
-               init_timeout: 5000,
-               json_library: Jason,
-               path: "/",
-               port: 80,
-               upgrade_timeout: 5000
-             }
+      config = %Config{
+        backoff_interval: 3000,
+        connect_timeout: 5000,
+        driver: GraphQLWSClient.Drivers.Gun,
+        host: "example.com",
+        init_payload: nil,
+        init_timeout: 5000,
+        json_library: Jason,
+        path: "/",
+        port: 80,
+        upgrade_timeout: 5000
+      }
+
+      assert Config.new(host: "example.com", port: 80) == config
+      assert Config.new(%{host: "example.com", port: 80}) == config
     end
 
     test "minimal config with ws:// URL" do
