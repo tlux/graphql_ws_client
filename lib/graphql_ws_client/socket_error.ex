@@ -3,7 +3,7 @@ defmodule GraphQLWSClient.SocketError do
   Exception that indicates a socket error.
   """
 
-  defexception [:cause, :details]
+  defexception [:cause, details: %{}]
 
   @type cause ::
           :connect
@@ -15,7 +15,7 @@ defmodule GraphQLWSClient.SocketError do
 
   @type t :: %__MODULE__{
           cause: cause,
-          details: nil | %{optional(atom) => any}
+          details: %{optional(atom) => any}
         }
 
   def message(exception) do

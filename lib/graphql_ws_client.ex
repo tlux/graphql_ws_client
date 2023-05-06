@@ -148,7 +148,7 @@ defmodule GraphQLWSClient do
         unquote(__MODULE__).unsubscribe(__MODULE__, subscription_id, timeout)
       end
 
-      defoverridable [child_spec: 1]
+      defoverridable child_spec: 1
     end
   end
 
@@ -291,7 +291,8 @@ defmodule GraphQLWSClient do
       iex> GraphQLWSClient.unsubscribe(client, #{inspect(UUID.uuid4())})
       :ok
   """
-  @spec unsubscribe(client, subscription_id, timeout) :: :ok
+  @spec unsubscribe(client, subscription_id, timeout) ::
+          :ok | {:error, Exception.t()}
   def unsubscribe(client, subscription_id, timeout \\ @default_timeout) do
     Connection.call(client, {:unsubscribe, subscription_id}, timeout)
   end
@@ -374,7 +375,7 @@ defmodule GraphQLWSClient do
     {:reply, connected?, state}
   end
 
-  def handle_call({:query, _, _}, _from, %State{connected?: false} = state) do
+  def handle_call(_msg, _from, %State{connected?: false} = state) do
     {:reply, {:error, %SocketError{cause: :closed}}, state}
   end
 
@@ -383,14 +384,6 @@ defmodule GraphQLWSClient do
     Driver.push_message(state.conn, build_query(id, query, variables))
 
     {:noreply, State.add_query(state, id, from)}
-  end
-
-  def handle_call(
-        {:subscribe, _, _, _},
-        _from,
-        %State{connected?: false} = state
-      ) do
-    {:reply, {:error, %SocketError{cause: :closed}}, state}
   end
 
   def handle_call(

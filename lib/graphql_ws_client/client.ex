@@ -38,5 +38,6 @@ defmodule GraphQLWSClient.Client do
   @doc """
   Removes the subscription for the given subscription ID.
   """
-  @callback unsubscribe(GraphQLWSClient.subscription_id(), timeout) :: :ok
+  @callback unsubscribe(GraphQLWSClient.subscription_id(), timeout) ::
+              :ok | {:error, Exception.t()}
 end
