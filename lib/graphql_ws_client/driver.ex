@@ -44,12 +44,22 @@ defmodule GraphQLWSClient.Driver do
   @doc false
   @spec disconnect(Conn.connected()) :: :ok
   def disconnect(%Conn{config: %Config{driver: driver}} = conn) do
-    driver_mod =
-      case driver do
-        {mod, _} -> mod
-        mod -> mod
-      end
-
-    driver_mod.disconnect(conn)
+    driver_mod(driver).disconnect(conn)
   end
+
+  @doc false
+  @spec push_message(Conn.connected(), msg :: any) :: :ok
+  def push_message(%Conn{config: %Config{driver: driver}} = conn, msg) do
+    driver_mod(driver).push_message(conn, msg)
+  end
+
+  @doc false
+  @spec handle_message(Conn.connected(), msg :: any) ::
+          {:ok, Message.t()} | {:error, SocketError.t()} | :ignore
+  def handle_message(%Conn{config: %Config{driver: driver}} = conn, msg) do
+    driver_mod(driver).handle_message(conn, msg)
+  end
+
+  defp driver_mod({mod, _}), do: mod
+  defp driver_mod(mod), do: mod
 end

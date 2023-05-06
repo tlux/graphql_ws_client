@@ -291,11 +291,7 @@ defmodule GraphQLWSClient do
 
   def handle_call({:query, query, variables}, from, %State{} = state) do
     id = UUID.uuid4()
-
-    state.config.driver.push_message(
-      state.conn,
-      build_query(id, query, variables)
-    )
+    Driver.push_message(state.conn, build_query(id, query, variables))
 
     {:noreply, State.add_query(state, id, from)}
   end
@@ -314,11 +310,7 @@ defmodule GraphQLWSClient do
         %State{} = state
       ) do
     id = UUID.uuid4()
-
-    state.config.driver.push_message(
-      state.conn,
-      build_query(id, query, variables)
-    )
+    Driver.push_message(state.conn, build_query(id, query, variables))
 
     {:reply, {:ok, id}, State.add_listener(state, id, listener)}
   end
@@ -328,10 +320,7 @@ defmodule GraphQLWSClient do
         _from,
         %State{} = state
       ) do
-    state.config.driver.push_message(state.conn, %{
-      id: subscription_id,
-      type: "complete"
-    })
+    Driver.push_message(state.conn, %{id: subscription_id, type: "complete"})
 
     {:reply, :ok, State.remove_listener(state, subscription_id)}
   end
@@ -356,7 +345,7 @@ defmodule GraphQLWSClient do
   end
 
   def handle_info(msg, %State{} = state) do
-    case state.config.driver.handle_message(state.conn, msg) do
+    case Driver.handle_message(state.conn, msg) do
       {:ok, msg} -> handle_message(msg, state)
       {:error, error} -> handle_error(error, state)
       :ignore -> {:noreply, state}

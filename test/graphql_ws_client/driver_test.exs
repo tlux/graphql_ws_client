@@ -3,6 +3,7 @@ defmodule GraphQLWSClient.DriverTest do
 
   import Mox
 
+  alias GraphQLWSClient.Message
   alias GraphQLWSClient.Conn
   alias GraphQLWSClient.Config
   alias GraphQLWSClient.Driver
@@ -15,6 +16,8 @@ defmodule GraphQLWSClient.DriverTest do
     host: "example.com",
     port: 80
   }
+
+  @conn %Conn{config: @config, opts: %{}}
 
   describe "connect/1" do
     test "driver without options" do
@@ -45,8 +48,6 @@ defmodule GraphQLWSClient.DriverTest do
   end
 
   describe "disconnect/1" do
-    @conn %Conn{config: @config, opts: %{}}
-
     test "driver without options" do
       conn = %{@conn | config: %{@config | driver: MockDriver}}
 
@@ -61,6 +62,47 @@ defmodule GraphQLWSClient.DriverTest do
       expect(MockDriver, :disconnect, fn ^conn -> :ok end)
 
       assert Driver.disconnect(conn) == :ok
+    end
+  end
+
+  describe "push_message/1" do
+    @msg %{"foo" => "bar"}
+
+    test "driver without options" do
+      conn = %{@conn | config: %{@config | driver: MockDriver}}
+
+      expect(MockDriver, :push_message, fn ^conn, @msg -> :ok end)
+
+      assert Driver.push_message(conn, @msg) == :ok
+    end
+
+    test "driver with options" do
+      conn = %{@conn | config: %{@config | driver: {MockDriver, []}}}
+
+      expect(MockDriver, :push_message, fn ^conn, @msg -> :ok end)
+
+      assert Driver.push_message(conn, @msg) == :ok
+    end
+  end
+
+  describe "handle_message/1" do
+    @msg {:text, Jason.encode!(%{"type" => "complete", "id" => "__id__"})}
+    @result {:ok, %Message{type: :complete, id: "__id__"}}
+
+    test "driver without options" do
+      conn = %{@conn | config: %{@config | driver: MockDriver}}
+
+      expect(MockDriver, :handle_message, fn ^conn, @msg -> @result end)
+
+      assert Driver.handle_message(conn, @msg) == @result
+    end
+
+    test "driver with options" do
+      conn = %{@conn | config: %{@config | driver: {MockDriver, []}}}
+
+      expect(MockDriver, :handle_message, fn ^conn, @msg -> @result end)
+
+      assert Driver.handle_message(conn, @msg) == @result
     end
   end
 end
