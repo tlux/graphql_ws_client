@@ -159,10 +159,12 @@ defmodule GraphQLWSClient.IntegrationTest do
 
     test "close handle", %{client: client} do
       assert Process.alive?(client)
-      %{mod_state: %{conn: conn}} = :sys.get_state(client)
+      %{mod_state: %{conn: %{pid: pid}}} = :sys.get_state(client)
+
       stop_supervised!(:graphql_ws_client)
+
       refute Process.alive?(client)
-      refute Process.alive?(conn.pid)
+      refute Process.alive?(pid)
     end
   end
 end

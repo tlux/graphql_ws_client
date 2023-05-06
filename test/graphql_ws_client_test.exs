@@ -10,7 +10,7 @@ defmodule GraphQLWSClientTest do
   @config %Config{
     backoff_interval: 1000,
     connect_timeout: 500,
-    driver: {GraphQLWSClient.Drivers.Mock, []},
+    driver: GraphQLWSClient.Drivers.Mock,
     host: "example.com",
     init_payload: %{"token" => "__token__"},
     init_timeout: 2000,
