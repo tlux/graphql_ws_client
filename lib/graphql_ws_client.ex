@@ -4,6 +4,7 @@ defmodule GraphQLWSClient do
   require Logger
 
   alias GraphQLWSClient.{
+    Client,
     Config,
     Conn,
     Driver,
@@ -20,27 +21,11 @@ defmodule GraphQLWSClient do
   @type subscription_id :: String.t()
   @type query :: String.t()
 
-  @callback start_link() :: GenServer.on_start()
-  @callback start_link(GenServer.options()) :: GenServer.on_start()
-  @callback open() :: :ok | {:error, Exception.t()}
-  @callback close() :: :ok
-  @callback query(query) :: {:ok, any} | {:error, Exception.t()}
-  @callback query(query, map) :: {:ok, any} | {:error, Exception.t()}
-  @callback query!(query) :: any | no_return
-  @callback query!(query, map) :: any | no_return
-  @callback subscribe(query) ::
-              {:ok, subscription_id} | {:error, Exception.t()}
-  @callback subscribe(query, map) ::
-              {:ok, subscription_id} | {:error, Exception.t()}
-  @callback subscribe(query, map, pid) ::
-              {:ok, subscription_id} | {:error, Exception.t()}
-  @callback unsubscribe(subscription_id) :: :ok
-
   defmacro __using__(opts) do
     otp_app = Keyword.fetch!(opts, :otp_app)
 
     quote location: :keep do
-      @behaviour unquote(__MODULE__)
+      @behaviour Client
 
       @doc false
       @spec __config__() :: Config.t()
@@ -50,7 +35,7 @@ defmodule GraphQLWSClient do
         |> Config.new()
       end
 
-      @impl unquote(__MODULE__)
+      @impl Client
       def start_link(opts \\ []) do
         unquote(__MODULE__).start_link(
           __config__(),
@@ -67,27 +52,27 @@ defmodule GraphQLWSClient do
         }
       end
 
-      @impl unquote(__MODULE__)
+      @impl Client
       def open(timeout \\ unquote(@default_timeout)) do
         unquote(__MODULE__).open(__MODULE__, timeout)
       end
 
-      @impl unquote(__MODULE__)
+      @impl Client
       def close(timeout \\ unquote(@default_timeout)) do
         unquote(__MODULE__).close(__MODULE__, timeout)
       end
 
-      @impl unquote(__MODULE__)
+      @impl Client
       def query(query, variables \\ %{}, timeout \\ unquote(@default_timeout)) do
         unquote(__MODULE__).query(__MODULE__, query, variables, timeout)
       end
 
-      @impl unquote(__MODULE__)
+      @impl Client
       def query!(query, variables \\ %{}, timeout \\ unquote(@default_timeout)) do
         unquote(__MODULE__).query!(__MODULE__, query, variables, timeout)
       end
 
-      @impl unquote(__MODULE__)
+      @impl Client
       def subscribe(
             query,
             variables \\ %{},
@@ -103,10 +88,12 @@ defmodule GraphQLWSClient do
         )
       end
 
-      @impl unquote(__MODULE__)
+      @impl Client
       def unsubscribe(subscription_id, timeout \\ unquote(@default_timeout)) do
         unquote(__MODULE__).unsubscribe(__MODULE__, subscription_id, timeout)
       end
+
+      defoverridable [child_spec: 1]
     end
   end
 
