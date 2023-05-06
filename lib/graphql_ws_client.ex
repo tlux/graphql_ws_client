@@ -345,7 +345,7 @@ defmodule GraphQLWSClient do
   end
 
   def handle_info(msg, %State{} = state) do
-    case Driver.handle_message(state.conn, msg) do
+    case Driver.parse_message(state.conn, msg) do
       {:ok, msg} -> handle_message(msg, state)
       {:error, error} -> handle_error(error, state)
       :ignore -> {:noreply, state}

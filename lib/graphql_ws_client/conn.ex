@@ -1,6 +1,8 @@
 defmodule GraphQLWSClient.Conn do
   @moduledoc false
 
+  alias GraphQLWSClient.Config
+
   @enforce_keys [:config, :opts]
 
   defstruct [:config, :opts, :pid, :stream_ref]

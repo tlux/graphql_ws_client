@@ -70,7 +70,7 @@ defmodule GraphQLWSClient.Drivers.WebsocketTest do
     # TODO
   end
 
-  describe "handle_message/2" do
+  describe "parse_message/2" do
     # TODO
   end
 end

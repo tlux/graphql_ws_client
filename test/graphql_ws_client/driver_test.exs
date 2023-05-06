@@ -85,24 +85,24 @@ defmodule GraphQLWSClient.DriverTest do
     end
   end
 
-  describe "handle_message/1" do
+  describe "parse_message/1" do
     @msg {:text, Jason.encode!(%{"type" => "complete", "id" => "__id__"})}
     @result {:ok, %Message{type: :complete, id: "__id__"}}
 
     test "driver without options" do
       conn = %{@conn | config: %{@config | driver: MockDriver}}
 
-      expect(MockDriver, :handle_message, fn ^conn, @msg -> @result end)
+      expect(MockDriver, :parse_message, fn ^conn, @msg -> @result end)
 
-      assert Driver.handle_message(conn, @msg) == @result
+      assert Driver.parse_message(conn, @msg) == @result
     end
 
     test "driver with options" do
       conn = %{@conn | config: %{@config | driver: {MockDriver, []}}}
 
-      expect(MockDriver, :handle_message, fn ^conn, @msg -> @result end)
+      expect(MockDriver, :parse_message, fn ^conn, @msg -> @result end)
 
-      assert Driver.handle_message(conn, @msg) == @result
+      assert Driver.parse_message(conn, @msg) == @result
     end
   end
 end

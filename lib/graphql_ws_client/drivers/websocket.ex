@@ -102,11 +102,11 @@ defmodule GraphQLWSClient.Drivers.Websocket do
   end
 
   @impl true
-  def handle_message(_conn, {:gun_error, _pid, _stream_ref, reason}) do
+  def parse_message(_conn, {:gun_error, _pid, _stream_ref, reason}) do
     {:error, %SocketError{cause: :critical_error, details: %{reason: reason}}}
   end
 
-  def handle_message(conn, {:gun_ws, _pid, _stream_ref, {:text, text}}) do
+  def parse_message(conn, {:gun_ws, _pid, _stream_ref, {:text, text}}) do
     case conn.json_library.decode(text) do
       {:ok, %{"type" => "complete", "id" => id}} ->
         {:ok, %Message{type: :complete, id: id}}
@@ -122,15 +122,15 @@ defmodule GraphQLWSClient.Drivers.Websocket do
     end
   end
 
-  def handle_message(_conn, {:gun_ws, _pid, _stream_ref, :close}) do
+  def parse_message(_conn, {:gun_ws, _pid, _stream_ref, :close}) do
     {:error, %SocketError{cause: :closed}}
   end
 
-  def handle_message(_conn, {:gun_ws, _pid, _stream_ref, {:close, payload}}) do
+  def parse_message(_conn, {:gun_ws, _pid, _stream_ref, {:close, payload}}) do
     {:error, %SocketError{cause: :closed, details: %{payload: payload}}}
   end
 
-  def handle_message(
+  def parse_message(
         _conn,
         {:gun_ws, _pid, _stream_ref, {:close, code, payload}}
       ) do
@@ -138,5 +138,5 @@ defmodule GraphQLWSClient.Drivers.Websocket do
      %SocketError{cause: :closed, details: %{code: code, payload: payload}}}
   end
 
-  def handle_message(_conn, _msg), do: :ignore
+  def parse_message(_conn, _msg), do: :ignore
 end
