@@ -4,15 +4,6 @@ defmodule GraphQLWSClient.IntegrationTest do
   alias GraphQLWSClient.Drivers.Websocket
   alias GraphQLWSClient.{Event, QueryError}
 
-  setup_all do
-    prev_value = Application.get_env(:graphql_ws_client, Websocket)
-    Application.delete_env(:graphql_ws_client, Websocket)
-
-    on_exit(fn ->
-      Application.put_env(:graphql_ws_client, Websocket, prev_value)
-    end)
-  end
-
   setup do
     client = start_supervised!(TestGraphQLWSClient, id: :graphql_ws_client)
     {:ok, client: client}

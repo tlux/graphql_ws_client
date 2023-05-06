@@ -20,20 +20,15 @@ defmodule GraphQLWSClientTest do
     upgrade_timeout: 1500
   }
 
+  @conn %Conn{config: @config, opts: %{}}
+
   setup :set_mox_from_context
   setup :verify_on_exit!
 
-  setup do
-    pid = spawn_link(fn -> Process.sleep(:infinity) end)
-    stream_ref = make_ref()
-
-    {:ok, conn: %Conn{json_library: Jason, pid: pid, stream_ref: stream_ref}}
-  end
-
   describe "start_link/1" do
-    test "success", %{conn: conn} do
-      expect(MockDriver, :connect, fn @config ->
-        {:ok, conn}
+    test "success" do
+      expect(MockDriver, :connect, fn @conn ->
+        {:ok, @conn}
       end)
 
       assert {:ok, client} = start_supervised({GraphQLWSClient, @config})
@@ -43,7 +38,7 @@ defmodule GraphQLWSClientTest do
     test "error" do
       error = %SocketError{cause: :timeout}
 
-      expect(MockDriver, :connect, fn @config ->
+      expect(MockDriver, :connect, fn @conn ->
         {:error, error}
       end)
 
@@ -58,11 +53,12 @@ defmodule GraphQLWSClientTest do
 
   describe "open/1" do
     setup do
-      {:ok, config: %{@config | connect_on_start: false}}
+      config = %{@config | connect_on_start: false}
+      {:ok, config: config, conn: %{@conn | config: config}}
     end
 
     test "success", %{config: config, conn: conn} do
-      expect(MockDriver, :connect, fn ^config ->
+      expect(MockDriver, :connect, fn ^conn ->
         {:ok, conn}
       end)
 
@@ -72,11 +68,10 @@ defmodule GraphQLWSClientTest do
       assert GraphQLWSClient.connected?(client) == true
     end
 
-    test "error", %{config: config} do
-      config = %{config | upgrade_timeout: 200}
+    test "error", %{config: config, conn: conn} do
       error = %SocketError{cause: :timeout}
 
-      expect(MockDriver, :connect, fn ^config ->
+      expect(MockDriver, :connect, fn ^conn ->
         {:error, error}
       end)
 
