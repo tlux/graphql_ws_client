@@ -5,7 +5,13 @@ defmodule GraphQLWSClient.SocketError do
 
   defexception [:cause, :details]
 
-  @type cause :: :connect | :closed | :result | :timeout
+  @type cause ::
+          :connect
+          | :closed
+          | :critical_error
+          | :unexpected_result
+          | :status
+          | :timeout
 
   @type t :: %__MODULE__{
           cause: cause,
@@ -13,11 +19,25 @@ defmodule GraphQLWSClient.SocketError do
         }
 
   def message(exception) do
-    "GraphQL websocket error: #{format_cause(exception.cause)}"
+    "GraphQL websocket error: " <>
+      format_cause(exception.cause, exception.details)
   end
 
-  defp format_cause(:connect), do: "Unable to connect to socket"
-  defp format_cause(:closed), do: "Connection closed"
-  defp format_cause(:result), do: "Unexpected result"
-  defp format_cause(:timeout), do: "Connection timed out"
+  defp format_cause(:connect, _), do: "Unable to connect to socket"
+
+  defp format_cause(:closed, _), do: "Connection closed"
+
+  defp format_cause(:critical_error, %{reason: reason}) do
+    "Critical error (#{inspect(reason)})"
+  end
+
+  defp format_cause(:critical_error, _), do: "Critical error"
+
+  defp format_cause(:unexpected_result, _), do: "Unexpected result"
+
+  defp format_cause(:unexpected_status, %{code: code}) do
+    "Unexpected status (#{code})"
+  end
+
+  defp format_cause(:timeout, _), do: "Connection timed out"
 end

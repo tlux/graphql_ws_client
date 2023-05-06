@@ -6,26 +6,21 @@ defmodule GraphQLWSClient.Drivers.Websocket do
   alias GraphQLWSClient.{Config, Conn, Message, SocketError}
 
   @impl true
-  def connect(%Config{} = config) do
+  def connect(%Conn{config: config, opts: opts} = conn) do
     with {:open, {:ok, pid}} <-
            {:open,
-            :gun.open(
+            opts.adapter.open(
               String.to_charlist(config.host),
               config.port,
               %{protocols: [:http]}
             )},
          {:await_up, {:ok, _protocol}} <-
-           {:await_up, :gun.await_up(pid, config.connect_timeout)},
-         stream_ref = :gun.ws_upgrade(pid, config.path),
+           {:await_up, opts.adapter.await_up(pid, config.connect_timeout)},
+         stream_ref = opts.adapter.ws_upgrade(pid, config.path),
          :ok <- await_upgrade(config.upgrade_timeout),
-         :ok <- init_connection(pid, stream_ref, config),
+         :ok <- init_connection(opts.adapter, pid, stream_ref, config),
          :ok <- await_connection_ack(config) do
-      {:ok,
-       %Conn{
-         json_library: config.json_library,
-         pid: pid,
-         stream_ref: stream_ref
-       }}
+      {:ok, %{conn | pid: pid, stream_ref: stream_ref}}
     else
       {:open, _} ->
         {:error, %SocketError{cause: :connect}}
@@ -42,8 +37,8 @@ defmodule GraphQLWSClient.Drivers.Websocket do
   end
 
   @impl true
-  def disconnect(%Conn{pid: pid}) do
-    :gun.close(pid)
+  def disconnect(%Conn{pid: pid} = conn) do
+    conn.opts.adapter.close(pid)
   end
 
   defp await_upgrade(timeout) do
@@ -52,18 +47,20 @@ defmodule GraphQLWSClient.Drivers.Websocket do
         :ok
 
       {:gun_response, _pid, _stream_ref, _is_fin, status, _headers} ->
-        {:error, %SocketError{cause: :result, details: %{status: status}}}
+        {:error,
+         %SocketError{cause: :unexpected_status, details: %{code: status}}}
 
       {:gun_error, _pid, _stream_ref, reason} ->
-        {:error, %SocketError{cause: :result, details: %{reason: reason}}}
+        {:error,
+         %SocketError{cause: :critical_error, details: %{reason: reason}}}
     after
       timeout ->
         {:error, %SocketError{cause: :timeout}}
     end
   end
 
-  defp init_connection(pid, stream_ref, %Config{} = config) do
-    push_message(pid, stream_ref, config.json_library, %{
+  defp init_connection(adapter, pid, stream_ref, %Config{} = config) do
+    push_message(adapter, pid, stream_ref, config.json_library, %{
       type: "connection_init",
       payload: config.init_payload
     })
@@ -72,16 +69,17 @@ defmodule GraphQLWSClient.Drivers.Websocket do
   defp await_connection_ack(%Config{} = config) do
     receive do
       {:gun_error, _pid, _stream_ref, reason} ->
-        {:error, %SocketError{cause: :result, details: %{reason: reason}}}
+        {:error,
+         %SocketError{cause: :critical_error, details: %{reason: reason}}}
 
       {:gun_ws, _pid, _stream_ref, {:text, msg}} ->
         case config.json_library.decode!(msg) do
           %{"type" => "connection_ack"} -> :ok
-          _ -> {:error, %SocketError{cause: :result}}
+          _ -> {:error, %SocketError{cause: :unexpected_result}}
         end
 
       {:gun_ws, _pid, _stream_ref, _msg} ->
-        {:error, %SocketError{cause: :result}}
+        {:error, %SocketError{cause: :unexpected_result}}
     after
       config.init_timeout ->
         {:error, %SocketError{cause: :timeout}}
@@ -90,16 +88,22 @@ defmodule GraphQLWSClient.Drivers.Websocket do
 
   @impl true
   def push_message(%Conn{} = conn, msg) do
-    push_message(conn.pid, conn.stream_ref, conn.json_library, msg)
+    push_message(
+      conn.opts.adapter,
+      conn.pid,
+      conn.stream_ref,
+      conn.config.json_library,
+      msg
+    )
   end
 
-  defp push_message(pid, stream_ref, json_library, msg) do
-    :gun.ws_send(pid, stream_ref, {:text, json_library.encode!(msg)})
+  defp push_message(adapter, pid, stream_ref, json_library, msg) do
+    adapter.ws_send(pid, stream_ref, {:text, json_library.encode!(msg)})
   end
 
   @impl true
   def handle_message(_conn, {:gun_error, _pid, _stream_ref, reason}) do
-    {:error, %SocketError{cause: :result, details: %{reason: reason}}}
+    {:error, %SocketError{cause: :critical_error, details: %{reason: reason}}}
   end
 
   def handle_message(conn, {:gun_ws, _pid, _stream_ref, {:text, text}}) do

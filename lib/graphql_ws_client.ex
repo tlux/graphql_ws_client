@@ -3,9 +3,16 @@ defmodule GraphQLWSClient do
 
   require Logger
 
-  alias GraphQLWSClient.Conn
-  alias GraphQLWSClient.Message
-  alias GraphQLWSClient.{Config, Event, QueryError, SocketError, State}
+  alias GraphQLWSClient.{
+    Config,
+    Conn,
+    Driver,
+    Event,
+    Message,
+    QueryError,
+    SocketError,
+    State
+  }
 
   @default_timeout 5000
 
@@ -225,7 +232,7 @@ defmodule GraphQLWSClient do
 
   @impl true
   def connect(info, %State{config: config} = state) do
-    case config.driver.connect(config) do
+    case Driver.connect(config) do
       {:ok, %Conn{} = conn} ->
         with {:open, from} <- info do
           Connection.reply(from, :ok)
