@@ -263,7 +263,7 @@ defmodule GraphQLWSClient do
 
   def disconnect(info, %State{} = state) do
     state = close_connection(state)
-    Logger.error("Disconnected: #{inspect(info)}")
+    Logger.error("Disconnected unexpectedly: #{inspect(info)}")
     {:connect, :reconnect, state}
   end
 

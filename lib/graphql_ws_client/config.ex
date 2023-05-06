@@ -5,7 +5,7 @@ defmodule GraphQLWSClient.Config do
           backoff_interval: non_neg_integer,
           connect_on_start: boolean,
           connect_timeout: timeout,
-          driver: module | {module, Keyword.t()},
+          driver: module | {module, Keyword.t() | %{optional(atom) => any}},
           host: String.t(),
           init_payload: any,
           init_timeout: timeout,
@@ -15,7 +15,7 @@ defmodule GraphQLWSClient.Config do
           upgrade_timeout: timeout
         }
 
-  @enforce_keys [:driver, :host, :port]
+  @enforce_keys [:host, :port]
 
   defstruct [
     :host,
@@ -24,7 +24,7 @@ defmodule GraphQLWSClient.Config do
     backoff_interval: 3000,
     connect_on_start: true,
     connect_timeout: 5000,
-    driver: {GraphQLWSClient.Drivers.Websocket, adapter: :gun},
+    driver: GraphQLWSClient.Drivers.Gun,
     init_timeout: 5000,
     json_library: Jason,
     path: "/",

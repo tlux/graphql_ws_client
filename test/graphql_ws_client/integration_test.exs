@@ -1,7 +1,6 @@
 defmodule GraphQLWSClient.IntegrationTest do
   use ExUnit.Case
 
-  alias GraphQLWSClient.Drivers.Websocket
   alias GraphQLWSClient.{Event, QueryError}
 
   setup do

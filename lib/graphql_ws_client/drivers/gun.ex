@@ -1,9 +1,14 @@
-defmodule GraphQLWSClient.Drivers.Websocket do
+defmodule GraphQLWSClient.Drivers.Gun do
   @moduledoc false
 
   @behaviour GraphQLWSClient.Driver
 
   alias GraphQLWSClient.{Config, Conn, Message, SocketError}
+
+  @impl true
+  def init(opts) do
+    Map.put_new(opts, :adapter, :gun)
+  end
 
   @impl true
   def connect(%Conn{config: config, opts: opts} = conn) do
@@ -20,10 +25,10 @@ defmodule GraphQLWSClient.Drivers.Websocket do
          :ok <- await_upgrade(config.upgrade_timeout),
          :ok <- init_connection(opts.adapter, pid, stream_ref, config),
          :ok <- await_connection_ack(config) do
-      {:ok, %{conn | pid: pid, stream_ref: stream_ref}}
+      {:ok, %{conn | pid: pid, data: %{stream_ref: stream_ref}}}
     else
-      {:open, _} ->
-        {:error, %SocketError{cause: :connect}}
+      {:open, {:error, reason}} ->
+        {:error, %SocketError{cause: :connect, details: %{reason: reason}}}
 
       {:await_up, {:error, :timeout}} ->
         {:error, %SocketError{cause: :timeout}}
@@ -68,18 +73,18 @@ defmodule GraphQLWSClient.Drivers.Websocket do
 
   defp await_connection_ack(%Config{} = config) do
     receive do
-      {:gun_error, _pid, _stream_ref, reason} ->
-        {:error,
-         %SocketError{cause: :critical_error, details: %{reason: reason}}}
-
       {:gun_ws, _pid, _stream_ref, {:text, msg}} ->
-        case config.json_library.decode!(msg) do
-          %{"type" => "connection_ack"} -> :ok
+        case config.json_library.decode(msg) do
+          {:ok, %{"type" => "connection_ack"}} -> :ok
           _ -> {:error, %SocketError{cause: :unexpected_result}}
         end
 
-      {:gun_ws, _pid, _stream_ref, _msg} ->
-        {:error, %SocketError{cause: :unexpected_result}}
+      {type, _pid, _stream_ref, _msg} = msg
+      when type in [:gun_error, :gun_ws] ->
+        case parse_error(msg) do
+          {:ok, error} -> {:error, error}
+          :error -> {:error, %SocketError{cause: :unexpected_result}}
+        end
     after
       config.init_timeout ->
         {:error, %SocketError{cause: :timeout}}
@@ -91,7 +96,7 @@ defmodule GraphQLWSClient.Drivers.Websocket do
     push_message(
       conn.opts.adapter,
       conn.pid,
-      conn.stream_ref,
+      conn.data.stream_ref,
       conn.config.json_library,
       msg
     )
@@ -102,10 +107,6 @@ defmodule GraphQLWSClient.Drivers.Websocket do
   end
 
   @impl true
-  def parse_message(_conn, {:gun_error, _pid, _stream_ref, reason}) do
-    {:error, %SocketError{cause: :critical_error, details: %{reason: reason}}}
-  end
-
   def parse_message(conn, {:gun_ws, _pid, _stream_ref, {:text, text}}) do
     case conn.json_library.decode(text) do
       {:ok, %{"type" => "complete", "id" => id}} ->
@@ -122,21 +123,29 @@ defmodule GraphQLWSClient.Drivers.Websocket do
     end
   end
 
-  def parse_message(_conn, {:gun_ws, _pid, _stream_ref, :close}) do
-    {:error, %SocketError{cause: :closed}}
+  def parse_message(_conn, msg) do
+    case parse_error(msg) do
+      {:ok, error} -> {:error, error}
+      :error -> :ignore
+    end
   end
 
-  def parse_message(_conn, {:gun_ws, _pid, _stream_ref, {:close, payload}}) do
-    {:error, %SocketError{cause: :closed, details: %{payload: payload}}}
+  defp parse_error({:gun_error, _pid, _stream_ref, reason}) do
+    {:ok, %SocketError{cause: :critical_error, details: %{reason: reason}}}
   end
 
-  def parse_message(
-        _conn,
-        {:gun_ws, _pid, _stream_ref, {:close, code, payload}}
-      ) do
-    {:error,
+  defp parse_error({:gun_ws, _pid, _stream_ref, :close}) do
+    {:ok, %SocketError{cause: :closed}}
+  end
+
+  defp parse_error({:gun_ws, _pid, _stream_ref, {:close, payload}}) do
+    {:ok, %SocketError{cause: :closed, details: %{payload: payload}}}
+  end
+
+  defp parse_error({:gun_ws, _pid, _stream_ref, {:close, code, payload}}) do
+    {:ok,
      %SocketError{cause: :closed, details: %{code: code, payload: payload}}}
   end
 
-  def parse_message(_conn, _msg), do: :ignore
+  defp parse_error(_), do: :error
 end

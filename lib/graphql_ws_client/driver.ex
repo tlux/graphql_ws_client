@@ -5,61 +5,74 @@ defmodule GraphQLWSClient.Driver do
 
   alias GraphQLWSClient.{Config, Conn, Message, SocketError}
 
+  @callback init(opts :: map) :: map
+
   @doc """
   Connects to the socket and returns the updated `#{inspect(Conn)}`.
   """
-  @callback connect(Conn.disconnected()) ::
-              {:ok, Conn.connected()}
-              | {:error, SocketError.t()}
+  @callback connect(Conn.t()) :: {:ok, Conn.t()} | {:error, SocketError.t()}
 
   @doc """
   Disconnects from the socket.
   """
-  @callback disconnect(Conn.connected()) :: :ok
+  @callback disconnect(Conn.t()) :: :ok
 
   @doc """
   Pushes a message to the socket.
   """
-  @callback push_message(Conn.connected(), msg :: any) :: :ok
+  @callback push_message(Conn.t(), msg :: any) :: :ok
 
   @doc """
   Parses a message received from the socket.
   """
-  @callback parse_message(Conn.connected(), msg :: any) ::
+  @callback parse_message(Conn.t(), msg :: any) ::
               {:ok, Message.t()} | {:error, SocketError.t()} | :ignore
+
+  @optional_callbacks [init: 1]
 
   @doc false
   @spec connect(Config.t()) ::
-          {:ok, Conn.connected()} | {:error, SocketError.t()}
+          {:ok, Conn.t()} | {:error, SocketError.t()}
   def connect(%Config{driver: driver} = config) do
     {driver_mod, driver_opts} =
       case driver do
-        {mod, opts} -> {mod, Map.new(opts)}
+        {mod, opts} -> {mod, opts}
         mod -> {mod, %{}}
       end
 
-    driver_mod.connect(%Conn{config: config, opts: driver_opts})
+    driver_mod.connect(%Conn{
+      config: config,
+      driver: driver_mod,
+      opts: init_driver(driver_mod, driver_opts)
+    })
+  end
+
+  defp init_driver(mod, opts) do
+    opts = Map.new(opts)
+
+    if Code.ensure_loaded?(mod) && function_exported?(mod, :init, 1) do
+      mod.init(opts)
+    else
+      opts
+    end
   end
 
   @doc false
-  @spec disconnect(Conn.connected()) :: :ok
-  def disconnect(%Conn{config: %Config{driver: driver}} = conn) do
-    driver_mod(driver).disconnect(conn)
+  @spec disconnect(Conn.t()) :: :ok
+  def disconnect(%Conn{driver: driver} = conn) do
+    driver.disconnect(conn)
   end
 
   @doc false
-  @spec push_message(Conn.connected(), msg :: any) :: :ok
-  def push_message(%Conn{config: %Config{driver: driver}} = conn, msg) do
-    driver_mod(driver).push_message(conn, msg)
+  @spec push_message(Conn.t(), msg :: any) :: :ok
+  def push_message(%Conn{driver: driver} = conn, msg) do
+    driver.push_message(conn, msg)
   end
 
   @doc false
-  @spec parse_message(Conn.connected(), msg :: any) ::
+  @spec parse_message(Conn.t(), msg :: any) ::
           {:ok, Message.t()} | {:error, SocketError.t()} | :ignore
-  def parse_message(%Conn{config: %Config{driver: driver}} = conn, msg) do
-    driver_mod(driver).parse_message(conn, msg)
+  def parse_message(%Conn{driver: driver} = conn, msg) do
+    driver.parse_message(conn, msg)
   end
-
-  defp driver_mod({mod, _}), do: mod
-  defp driver_mod(mod), do: mod
 end

@@ -5,12 +5,12 @@ defmodule GraphQLWSClientTest do
   import Mox
 
   alias GraphQLWSClient.{Config, Conn, SocketError}
-  alias GraphQLWSClient.Drivers.Mock, as: MockDriver
+  alias GraphQLWSClient.Drivers.MockWithoutInit, as: MockDriver
 
   @config %Config{
     backoff_interval: 1000,
     connect_timeout: 500,
-    driver: GraphQLWSClient.Drivers.Mock,
+    driver: MockDriver,
     host: "example.com",
     init_payload: %{"token" => "__token__"},
     init_timeout: 2000,
@@ -20,7 +20,7 @@ defmodule GraphQLWSClientTest do
     upgrade_timeout: 1500
   }
 
-  @conn %Conn{config: @config, opts: %{}}
+  @conn %Conn{config: @config, driver: MockDriver}
 
   setup :set_mox_from_context
   setup :verify_on_exit!

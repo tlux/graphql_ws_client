@@ -8,7 +8,7 @@ defmodule GraphQLWSClient.ConfigTest do
       assert Config.new(host: "example.com", port: 80) == %Config{
                backoff_interval: 3000,
                connect_timeout: 5000,
-               driver: {GraphQLWSClient.Drivers.Websocket, adapter: :gun},
+               driver: GraphQLWSClient.Drivers.Gun,
                host: "example.com",
                init_payload: nil,
                init_timeout: 5000,
@@ -51,7 +51,7 @@ defmodule GraphQLWSClient.ConfigTest do
       opts = [
         backoff_interval: 1000,
         connect_timeout: 2000,
-        driver: {SomeDriver, []},
+        driver: {SomeDriver, foo: "bar"},
         host: "example.com",
         init_payload: %{"foo" => "bar"},
         init_timeout: 3000,
