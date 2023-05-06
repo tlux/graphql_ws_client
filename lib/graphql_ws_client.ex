@@ -381,7 +381,7 @@ defmodule GraphQLWSClient do
         send(listener, %Event{subscription_id: id, error: error})
 
       :error ->
-        Logger.info("Unexpected payload: #{payload}")
+        Logger.info("Message discarded (#{id}): #{inspect(payload)}")
     end
 
     {:noreply, state}
@@ -399,7 +399,7 @@ defmodule GraphQLWSClient do
         send(listener, %Event{subscription_id: id, result: payload})
 
       :error ->
-        Logger.info("Unexpected payload: #{payload}")
+        Logger.info("Message discarded (#{id}): #{inspect(payload)}")
     end
 
     {:noreply, state}
