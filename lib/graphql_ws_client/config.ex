@@ -15,7 +15,7 @@ defmodule GraphQLWSClient.Config do
           upgrade_timeout: timeout
         }
 
-  @enforce_keys [:host, :port]
+  @enforce_keys [:driver, :host, :port]
 
   defstruct [
     :host,

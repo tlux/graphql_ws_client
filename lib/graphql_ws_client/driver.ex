@@ -26,4 +26,16 @@ defmodule GraphQLWSClient.Driver do
   def connect(%Config{driver: driver_mod} = config) do
     driver_mod.connect(%Conn{config: config, opts: %{}})
   end
+
+  @doc false
+  @spec disconnect(Conn.connected()) :: :ok
+  def disconnect(%Conn{config: %Config{driver: driver}} = conn) do
+    driver_mod =
+      case driver do
+        {mod, _} -> mod
+        mod -> mod
+      end
+
+    driver_mod.disconnect(conn)
+  end
 end

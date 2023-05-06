@@ -415,15 +415,9 @@ defmodule GraphQLWSClient do
 
   defp close_connection(%State{connected?: false} = state), do: state
 
-  defp close_connection(
-         %State{
-           config: config,
-           monitor_ref: monitor_ref,
-           conn: conn
-         } = state
-       ) do
+  defp close_connection(%State{conn: conn, monitor_ref: monitor_ref} = state) do
     Process.demonitor(monitor_ref)
-    config.driver.disconnect(conn)
+    Driver.disconnect(conn)
     State.reset_conn(state)
   end
 
