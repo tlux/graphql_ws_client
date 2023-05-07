@@ -14,6 +14,11 @@ defmodule GraphQLWSClient.Client do
   @callback open(timeout) :: :ok | {:error, Exception.t()}
 
   @doc """
+  Connects to the server. Raises on error
+  """
+  @callback open!(timeout) :: :ok | no_return
+
+  @doc """
   Closes the connection to the server.
   """
   @callback close(timeout) :: :ok
@@ -36,8 +41,21 @@ defmodule GraphQLWSClient.Client do
               {:ok, GraphQLWSClient.subscription_id()} | {:error, Exception.t()}
 
   @doc """
+  Sends a subscription to the server and returns the subscription ID. Raises on
+  error.
+  """
+  @callback subscribe!(GraphQLWSClient.query(), map, pid, timeout) ::
+              GraphQLWSClient.subscription_id() | no_return
+
+  @doc """
   Removes the subscription for the given subscription ID.
   """
   @callback unsubscribe(GraphQLWSClient.subscription_id(), timeout) ::
               :ok | {:error, Exception.t()}
+
+  @doc """
+  Removes the subscription for the given subscription ID. Raises on error.
+  """
+  @callback unsubscribe!(GraphQLWSClient.subscription_id(), timeout) ::
+              :ok | no_return
 end

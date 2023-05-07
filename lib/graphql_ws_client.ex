@@ -113,6 +113,11 @@ defmodule GraphQLWSClient do
       end
 
       @impl Client
+      def open!(timeout \\ unquote(@default_timeout)) do
+        unquote(__MODULE__).open!(__MODULE__, timeout)
+      end
+
+      @impl Client
       def close(timeout \\ unquote(@default_timeout)) do
         unquote(__MODULE__).close(__MODULE__, timeout)
       end
@@ -144,8 +149,29 @@ defmodule GraphQLWSClient do
       end
 
       @impl Client
+      def subscribe!(
+            query,
+            variables \\ %{},
+            listener \\ self(),
+            timeout \\ unquote(@default_timeout)
+          ) do
+        unquote(__MODULE__).subscribe!(
+          __MODULE__,
+          query,
+          variables,
+          listener,
+          timeout
+        )
+      end
+
+      @impl Client
       def unsubscribe(subscription_id, timeout \\ unquote(@default_timeout)) do
         unquote(__MODULE__).unsubscribe(__MODULE__, subscription_id, timeout)
+      end
+
+      @impl Client
+      def unsubscribe!(subscription_id, timeout \\ unquote(@default_timeout)) do
+        unquote(__MODULE__).unsubscribe!(__MODULE__, subscription_id, timeout)
       end
 
       defoverridable child_spec: 1
@@ -205,6 +231,16 @@ defmodule GraphQLWSClient do
   @spec open(client, timeout) :: :ok | {:error, Exception.t()}
   def open(client, timeout \\ @default_timeout) do
     Connection.call(client, :open, timeout)
+  end
+
+  @doc """
+  Opens the connection to the websocket. Raises on error.
+  """
+  @spec open!(client, timeout) :: :ok | no_return
+  def open!(client, timeout \\ @default_timeout) do
+    client
+    |> open(timeout)
+    |> bang!()
   end
 
   @doc """
@@ -284,6 +320,37 @@ defmodule GraphQLWSClient do
   end
 
   @doc """
+  Sends a GraphQL subscription to the websocket and registers a listener process
+  to retrieve events. Raises on error.
+
+  ## Example
+
+      iex> GraphQLWSClient.subscribe!(
+      ...>   client,
+      ...>   \"""
+      ...>     subscription CommentAdded($postId: ID!) {
+      ...>       commentAdded(postId: $postId) { body }
+      ...>     }
+      ...>   \""",
+      ...>   %{"postId" => 1337}
+      ...> )
+      #{inspect(UUID.uuid4())}
+  """
+  @spec subscribe!(client, query, map, pid, timeout) ::
+          subscription_id | no_return
+  def subscribe!(
+        client,
+        query,
+        variables \\ %{},
+        listener \\ self(),
+        timeout \\ @default_timeout
+      ) do
+    client
+    |> subscribe(query, variables, listener, timeout)
+    |> bang!()
+  end
+
+  @doc """
   Removes a subscription.
 
   ## Example
@@ -295,6 +362,21 @@ defmodule GraphQLWSClient do
           :ok | {:error, Exception.t()}
   def unsubscribe(client, subscription_id, timeout \\ @default_timeout) do
     Connection.call(client, {:unsubscribe, subscription_id}, timeout)
+  end
+
+  @doc """
+  Removes a subscription. Raises on error.
+
+  ## Example
+
+      iex> GraphQLWSClient.unsubscribe!(client, #{inspect(UUID.uuid4())})
+      :ok
+  """
+  @spec unsubscribe!(client, subscription_id, timeout) :: :ok | no_return
+  def unsubscribe!(client, subscription_id, timeout \\ @default_timeout) do
+    client
+    |> unsubscribe(subscription_id, timeout)
+    |> bang!()
   end
 
   @doc false
@@ -502,4 +584,8 @@ defmodule GraphQLWSClient do
       }
     }
   end
+
+  defp bang!(:ok), do: :ok
+  defp bang!({:ok, result}), do: result
+  defp bang!({:error, error}), do: raise(error)
 end
