@@ -5,6 +5,17 @@ defmodule GraphQLWSClient.QueryErrorTest do
 
   describe "Exception.message/1" do
     test "message" do
+      errors = [
+        %{
+          "message" => "Something went wrong",
+          "extensions" => %{"code" => 1234}
+        },
+        %{
+          "message" => "Yet another error",
+          "extensions" => %{"code" => 2345}
+        }
+      ]
+
       assert Exception.message(%QueryError{
                errors: [
                  %{
@@ -17,10 +28,7 @@ defmodule GraphQLWSClient.QueryErrorTest do
                  }
                ]
              }) ==
-               "GraphQL query error:\n\n" <>
-                 "[\n" <>
-                 "  %{\"extensions\" => %{\"code\" => 1234}, \"message\" => \"Something went wrong\"},\n" <>
-                 "  %{\"extensions\" => %{\"code\" => 2345}, \"message\" => \"Yet another error\"}\n]"
+               "GraphQL query error:\n\n#{inspect(errors, pretty: true)}"
     end
   end
 end
