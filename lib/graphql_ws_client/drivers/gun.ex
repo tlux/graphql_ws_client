@@ -14,7 +14,9 @@ defmodule GraphQLWSClient.Drivers.Gun do
 
   @impl true
   def connect(%Conn{config: config, opts: opts} = conn) do
-    with {:open, {:ok, pid}} <-
+    with {:start, {:ok, _}} <-
+           {:start, Application.ensure_all_started(:gun)},
+         {:open, {:ok, pid}} <-
            {:open,
             opts.adapter.open(
               String.to_charlist(config.host),
@@ -37,6 +39,10 @@ defmodule GraphQLWSClient.Drivers.Gun do
 
       {:await_up, {:error, {:down, _}}} ->
         {:error, %SocketError{cause: :closed}}
+
+      {:start, {:error, {_app, reason}}} ->
+        {:error,
+         %SocketError{cause: :critical_error, details: %{reason: reason}}}
 
       error ->
         error
@@ -110,7 +116,7 @@ defmodule GraphQLWSClient.Drivers.Gun do
 
   @impl true
   def parse_message(conn, {:gun_ws, _pid, _stream_ref, {:text, text}}) do
-    case conn.json_library.decode(text) do
+    case conn.config.json_library.decode(text) do
       {:ok, %{"type" => "complete", "id" => id}} ->
         {:ok, %Message{type: :complete, id: id}}
 
