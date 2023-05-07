@@ -381,7 +381,7 @@ defmodule GraphQLWSClient do
 
   def handle_call({:query, query, variables}, from, %State{} = state) do
     id = UUID.uuid4()
-    Driver.push_message(state.conn, build_query(id, query, variables))
+    Driver.push_message(state.conn, build_message(id, query, variables))
 
     {:noreply, State.add_query(state, id, from)}
   end
@@ -392,7 +392,7 @@ defmodule GraphQLWSClient do
         %State{} = state
       ) do
     id = UUID.uuid4()
-    Driver.push_message(state.conn, build_query(id, query, variables))
+    Driver.push_message(state.conn, build_message(id, query, variables))
 
     {:reply, {:ok, id}, State.add_listener(state, id, listener)}
   end
@@ -492,7 +492,7 @@ defmodule GraphQLWSClient do
     State.reset_conn(state)
   end
 
-  defp build_query(id, query, variables) do
+  defp build_message(id, query, variables) do
     %{
       id: id,
       type: "subscribe",
