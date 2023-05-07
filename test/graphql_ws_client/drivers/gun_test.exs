@@ -3,10 +3,10 @@ defmodule GraphQLWSClient.Drivers.GunTest do
 
   import Mox
 
-  alias GraphQLWSClient.SocketError
   alias GraphQLWSClient.Config
   alias GraphQLWSClient.Conn
   alias GraphQLWSClient.Drivers.Gun
+  alias GraphQLWSClient.SocketError
   alias GraphQLWSClient.WSClientMock
 
   @config Config.new(
@@ -111,6 +111,47 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       assert Gun.connect(@conn) == {:error, %SocketError{cause: :timeout}}
     end
 
+    test "unexpected status awaiting upgrade", %{
+      pid: pid,
+      stream_ref: stream_ref
+    } do
+      code = 200
+
+      WSClientMock
+      |> expect(:open, fn _, _, _ -> {:ok, pid} end)
+      |> expect(:await_up, fn _, _ -> {:ok, :http} end)
+      |> expect(:ws_upgrade, fn _, _ ->
+        send(self(), {:gun_response, pid, stream_ref, nil, code, nil})
+        stream_ref
+      end)
+
+      assert Gun.connect(@conn) ==
+               {:error,
+                %SocketError{cause: :unexpected_status, details: %{code: code}}}
+    end
+
+    test "error awaiting upgrade", %{
+      pid: pid,
+      stream_ref: stream_ref
+    } do
+      reason = "Something went wrong"
+
+      WSClientMock
+      |> expect(:open, fn _, _, _ -> {:ok, pid} end)
+      |> expect(:await_up, fn _, _ -> {:ok, :http} end)
+      |> expect(:ws_upgrade, fn _, _ ->
+        send(self(), {:gun_error, pid, stream_ref, reason})
+        stream_ref
+      end)
+
+      assert Gun.connect(@conn) ==
+               {:error,
+                %SocketError{
+                  cause: :critical_error,
+                  details: %{reason: reason}
+                }}
+    end
+
     test "timeout awaiting connection ack", %{pid: pid, stream_ref: stream_ref} do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
@@ -212,7 +253,13 @@ defmodule GraphQLWSClient.Drivers.GunTest do
   end
 
   describe "disconnect/1" do
-    # TODO
+    test "success", %{pid: pid} do
+      conn = %{@conn | pid: pid}
+
+      expect(WSClientMock, :close, fn ^pid -> :ok end)
+
+      assert Gun.disconnect(conn) == :ok
+    end
   end
 
   describe "push_message/2" do
@@ -220,6 +267,12 @@ defmodule GraphQLWSClient.Drivers.GunTest do
   end
 
   describe "parse_message/2" do
-    # TODO
+    test "complete"
+
+    test "next"
+
+    test "error"
+
+    test "ignored"
   end
 end
