@@ -22,8 +22,8 @@ defmodule GraphQLWSClientTest do
 
   @config struct!(Config, @opts)
   @conn %Conn{config: @config, driver: MockDriver}
+  @query "query Foo { foo { bar } }"
   @subscription_id "__subscription_id__"
-  @subscription_query "subscription Foo { foo { bar } }"
   @variables %{"foo" => "bar"}
 
   setup :set_mox_from_context
@@ -129,15 +129,206 @@ defmodule GraphQLWSClientTest do
   end
 
   describe "close/1" do
-    # TODO
+    test "success" do
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:disconnect, fn @conn -> :ok end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert GraphQLWSClient.close(client) == :ok
+    end
   end
 
   describe "query/3" do
-    # TODO
+    test "success" do
+      test_pid = self()
+      payload = %{"foo" => "bar"}
+
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:push_message, fn @conn,
+                                  %Message{
+                                    type: :subscribe,
+                                    id: id,
+                                    payload: %{
+                                      query: @query,
+                                      variables: @variables
+                                    }
+                                  } ->
+        send(self(), {:next_msg, id})
+        :ok
+      end)
+      |> expect(:parse_message, fn @conn, {:next_msg, id} ->
+        send(self(), {:complete_msg, id})
+        {:ok, %Message{type: :next, id: id, payload: payload}}
+      end)
+      |> expect(:parse_message, fn @conn, {:complete_msg, id} ->
+        send(test_pid, :completed_msg)
+        {:ok, %Message{type: :complete, id: id}}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert GraphQLWSClient.query(client, @query, @variables) == {:ok, payload}
+
+      # the subscription is only removed after the complete message is received,
+      # this may happen after the client already replied to the query function
+      assert_receive :completed_msg
+    end
+
+    test "query error" do
+      test_pid = self()
+      errors = [%{"message" => "Something went wrong"}]
+
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:push_message, fn @conn, %Message{id: id} ->
+        send(self(), {:next_msg, id})
+        :ok
+      end)
+      |> expect(:parse_message, fn @conn, {:next_msg, id} ->
+        send(self(), {:complete_msg, id})
+        {:ok, %Message{type: :error, id: id, payload: errors}}
+      end)
+      |> expect(:parse_message, fn @conn, {:complete_msg, id} ->
+        send(test_pid, :completed_msg)
+        {:ok, %Message{type: :complete, id: id}}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert GraphQLWSClient.query(client, @query, @variables) ==
+               {:error, %QueryError{errors: errors}}
+
+      # the subscription is only removed after the complete message is received,
+      # this may happen after the client already replied to the query function
+      assert_receive :completed_msg
+    end
+
+    test "not connected" do
+      config = %{@config | connect_on_start: false}
+      client = start_supervised!({GraphQLWSClient, config})
+
+      assert GraphQLWSClient.query(client, @query, @variables) ==
+               {:error, %SocketError{cause: :closed}}
+    end
+
+    test "disconnect on parse error" do
+      error = %SocketError{cause: :critical_error}
+
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:push_message, fn @conn, _msg ->
+        send(self(), :next_msg)
+        :ok
+      end)
+      |> expect(:parse_message, fn @conn, :next_msg ->
+        {:error, error}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert GraphQLWSClient.query(client, @query, @variables) ==
+               {:error, error}
+    end
+
+    test "reply when socket goes down" do
+      pid = spawn(fn -> Process.sleep(:infinity) end)
+      conn = %{@conn | pid: pid}
+
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, conn} end)
+      |> expect(:push_message, fn ^conn, _msg ->
+        # simulate an unexpected socket shutdown
+        Process.exit(pid, :shutdown)
+        :ok
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert GraphQLWSClient.query(client, @query, @variables) ==
+               {:error, %SocketError{cause: :closed}}
+    end
   end
 
   describe "query!/3" do
-    # TODO
+    test "success" do
+      test_pid = self()
+      payload = %{"foo" => "bar"}
+
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:push_message, fn @conn,
+                                  %Message{
+                                    type: :subscribe,
+                                    id: id,
+                                    payload: %{
+                                      query: @query,
+                                      variables: @variables
+                                    }
+                                  } ->
+        send(self(), {:next_msg, id})
+        :ok
+      end)
+      |> expect(:parse_message, fn @conn, {:next_msg, id} ->
+        send(self(), {:complete_msg, id})
+        {:ok, %Message{type: :next, id: id, payload: payload}}
+      end)
+      |> expect(:parse_message, fn @conn, {:complete_msg, id} ->
+        send(test_pid, :completed_msg)
+        {:ok, %Message{type: :complete, id: id}}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert GraphQLWSClient.query!(client, @query, @variables) == payload
+
+      # the subscription is only removed after the complete message is received,
+      # this may happen after the client already replied to the query function
+      assert_receive :completed_msg
+    end
+
+    test "query error" do
+      test_pid = self()
+      errors = [%{"message" => "Something went wrong"}]
+
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:push_message, fn @conn, %Message{id: id} ->
+        send(self(), {:next_msg, id})
+        :ok
+      end)
+      |> expect(:parse_message, fn @conn, {:next_msg, id} ->
+        send(self(), {:complete_msg, id})
+        {:ok, %Message{type: :error, id: id, payload: errors}}
+      end)
+      |> expect(:parse_message, fn @conn, {:complete_msg, id} ->
+        send(test_pid, :completed_msg)
+        {:ok, %Message{type: :complete, id: id}}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+      error = %QueryError{errors: errors}
+
+      assert_raise QueryError, Exception.message(error), fn ->
+        GraphQLWSClient.query!(client, @query, @variables)
+      end
+
+      # the subscription is only removed after the complete message is received,
+      # this may happen after the client already replied to the query function
+      assert_receive :completed_msg
+    end
+
+    test "not connected" do
+      config = %{@config | connect_on_start: false}
+      client = start_supervised!({GraphQLWSClient, config})
+      error = %SocketError{cause: :closed}
+
+      assert_raise SocketError, Exception.message(error), fn ->
+        GraphQLWSClient.query!(client, @query, @variables)
+      end
+    end
   end
 
   describe "subscribe/4" do
@@ -151,7 +342,7 @@ defmodule GraphQLWSClientTest do
                                     type: :subscribe,
                                     id: subscription_id,
                                     payload: %{
-                                      query: @subscription_query,
+                                      query: @query,
                                       variables: @variables
                                     }
                                   } ->
@@ -164,7 +355,7 @@ defmodule GraphQLWSClientTest do
       assert {:ok, subscription_id} =
                GraphQLWSClient.subscribe(
                  client,
-                 @subscription_query,
+                 @query,
                  @variables,
                  self()
                )
@@ -181,7 +372,7 @@ defmodule GraphQLWSClientTest do
 
       assert GraphQLWSClient.subscribe(
                client,
-               @subscription_query,
+               @query,
                @variables,
                self()
              ) == {:error, %SocketError{cause: :closed}}
@@ -199,7 +390,7 @@ defmodule GraphQLWSClientTest do
                                     type: :subscribe,
                                     id: subscription_id,
                                     payload: %{
-                                      query: @subscription_query,
+                                      query: @query,
                                       variables: @variables
                                     }
                                   } ->
@@ -212,7 +403,7 @@ defmodule GraphQLWSClientTest do
       subscription_id =
         GraphQLWSClient.subscribe!(
           client,
-          @subscription_query,
+          @query,
           @variables,
           self()
         )
@@ -232,7 +423,7 @@ defmodule GraphQLWSClientTest do
       assert_raise SocketError, Exception.message(error), fn ->
         GraphQLWSClient.subscribe!(
           client,
-          @subscription_query,
+          @query,
           @variables,
           self()
         )
@@ -257,7 +448,7 @@ defmodule GraphQLWSClientTest do
       end)
 
       client = start_supervised!({GraphQLWSClient, @config})
-      subscription_id = GraphQLWSClient.subscribe!(client, @subscription_query)
+      subscription_id = GraphQLWSClient.subscribe!(client, @query)
 
       assert GraphQLWSClient.unsubscribe(client, subscription_id) == :ok
       assert_received {:removed_subscription, ^subscription_id}
@@ -292,7 +483,7 @@ defmodule GraphQLWSClientTest do
       end)
 
       client = start_supervised!({GraphQLWSClient, @config})
-      subscription_id = GraphQLWSClient.subscribe!(client, @subscription_query)
+      subscription_id = GraphQLWSClient.subscribe!(client, @query)
 
       assert GraphQLWSClient.unsubscribe!(client, subscription_id) == :ok
       assert_received {:removed_subscription, ^subscription_id}
@@ -321,13 +512,12 @@ defmodule GraphQLWSClientTest do
 
       client = start_supervised!({GraphQLWSClient, @config})
 
-      subscription_id =
-        GraphQLWSClient.subscribe!(client, @subscription_query, @variables)
+      subscription_id = GraphQLWSClient.subscribe!(client, @query, @variables)
 
       {:ok, client: client, subscription_id: subscription_id}
     end
 
-    test "receive result", %{client: client, subscription_id: subscription_id} do
+    test "next message", %{client: client, subscription_id: subscription_id} do
       result = %{"foo" => "bar"}
 
       expect(MockDriver, :parse_message, fn @conn, :test_message ->
@@ -343,7 +533,7 @@ defmodule GraphQLWSClientTest do
       }
     end
 
-    test "receive error", %{client: client, subscription_id: subscription_id} do
+    test "error message", %{client: client, subscription_id: subscription_id} do
       errors = [%{"message" => "Something went wrong"}]
 
       expect(MockDriver, :parse_message, fn @conn, :test_message ->
@@ -357,6 +547,16 @@ defmodule GraphQLWSClientTest do
         result: nil,
         error: %QueryError{errors: ^errors}
       }
+    end
+
+    test "ignored message", %{client: client} do
+      expect(MockDriver, :parse_message, fn @conn, :test_message ->
+        :ignore
+      end)
+
+      send(client, :test_message)
+
+      refute_receive %Event{}
     end
   end
 
