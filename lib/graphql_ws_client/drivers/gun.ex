@@ -73,17 +73,17 @@ defmodule GraphQLWSClient.Drivers.Gun do
   end
 
   defp init_connection(adapter, pid, stream_ref, %Config{} = config) do
-    push_message(adapter, pid, stream_ref, config.json_library, %{
-      type: "connection_init",
+    push_message(adapter, pid, stream_ref, config.json_library, %Message{
+      type: :connection_init,
       payload: config.init_payload
     })
   end
 
   defp await_connection_ack(%Config{} = config) do
     receive do
-      {:gun_ws, _pid, _stream_ref, {:text, msg}} ->
-        case config.json_library.decode(msg) do
-          {:ok, %{"type" => "connection_ack"}} -> :ok
+      {:gun_ws, _pid, _stream_ref, {:text, text}} ->
+        case Message.parse(text, config.json_library) do
+          {:ok, %Message{type: :connection_ack}} -> :ok
           _ -> {:error, %SocketError{cause: :unexpected_result}}
         end
 
@@ -100,7 +100,7 @@ defmodule GraphQLWSClient.Drivers.Gun do
   end
 
   @impl true
-  def push_message(%Conn{} = conn, msg) do
+  def push_message(%Conn{} = conn, %Message{} = msg) do
     push_message(
       conn.opts.adapter,
       conn.pid,
@@ -110,24 +110,18 @@ defmodule GraphQLWSClient.Drivers.Gun do
     )
   end
 
-  defp push_message(adapter, pid, stream_ref, json_library, msg) do
-    adapter.ws_send(pid, stream_ref, {:text, json_library.encode!(msg)})
+  defp push_message(adapter, pid, stream_ref, json_library, %Message{} = msg) do
+    adapter.ws_send(
+      pid,
+      stream_ref,
+      {:text, Message.serialize(msg, json_library)}
+    )
   end
 
   @impl true
   def parse_message(conn, {:gun_ws, _pid, _stream_ref, {:text, text}}) do
-    case conn.config.json_library.decode(text) do
-      {:ok, %{"type" => "complete", "id" => id}} ->
-        {:ok, %Message{type: :complete, id: id}}
-
-      {:ok, %{"type" => "next", "id" => id, "payload" => payload}} ->
-        {:ok, %Message{type: :next, id: id, payload: payload}}
-
-      {:ok, %{"type" => "error", "id" => id, "payload" => payload}} ->
-        {:ok, %Message{type: :error, id: id, payload: payload}}
-
-      _ ->
-        :ignore
+    with :error <- Message.parse(text, conn.config.json_library) do
+      :ignore
     end
   end
 

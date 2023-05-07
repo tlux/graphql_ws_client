@@ -24,7 +24,7 @@ defmodule GraphQLWSClient.Driver do
   @doc """
   Pushes a message to the socket.
   """
-  @callback push_message(Conn.t(), msg :: any) :: :ok
+  @callback push_message(Conn.t(), msg :: Message.t()) :: :ok
 
   @doc """
   Parses a message received from the socket.
@@ -68,8 +68,8 @@ defmodule GraphQLWSClient.Driver do
   end
 
   @doc false
-  @spec push_message(Conn.t(), msg :: any) :: :ok
-  def push_message(%Conn{driver: driver} = conn, msg) do
+  @spec push_message(Conn.t(), Message.t()) :: :ok
+  def push_message(%Conn{driver: driver} = conn, %Message{} = msg) do
     driver.push_message(conn, msg)
   end
 

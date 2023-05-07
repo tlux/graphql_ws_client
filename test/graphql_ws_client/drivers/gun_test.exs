@@ -1,11 +1,12 @@
 defmodule GraphQLWSClient.Drivers.GunTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   import Mox
 
   alias GraphQLWSClient.Config
   alias GraphQLWSClient.Conn
   alias GraphQLWSClient.Drivers.Gun
+  alias GraphQLWSClient.Message
   alias GraphQLWSClient.SocketError
   alias GraphQLWSClient.WSClientMock
 
@@ -263,16 +264,114 @@ defmodule GraphQLWSClient.Drivers.GunTest do
   end
 
   describe "push_message/2" do
-    # TODO
+    test "subscribe", %{pid: pid, stream_ref: stream_ref} do
+      conn = %{@conn | pid: pid, data: %{stream_ref: stream_ref}}
+      msg = %Message{type: :subscribe, id: "__id__", payload: "__payload__"}
+      text = Message.serialize(msg, Jason)
+
+      expect(WSClientMock, :ws_send, fn ^pid, ^stream_ref, {:text, ^text} ->
+        :ok
+      end)
+
+      assert Gun.push_message(conn, msg) == :ok
+    end
   end
 
   describe "parse_message/2" do
-    test "complete"
+    setup %{pid: pid, stream_ref: stream_ref} do
+      {:ok, conn: %{@conn | pid: pid, data: %{stream_ref: stream_ref}}}
+    end
 
-    test "next"
+    Enum.each(~w(complete next error), fn type ->
+      test type, %{conn: conn, pid: pid, stream_ref: stream_ref} do
+        assert Gun.parse_message(
+                 conn,
+                 {:gun_ws, pid, stream_ref,
+                  {:text,
+                   Jason.encode!(%{
+                     "type" => unquote(type),
+                     "id" => "__id__",
+                     "payload" => "__payload__"
+                   })}}
+               ) ==
+                 {:ok,
+                  %Message{
+                    type: String.to_existing_atom(unquote(type)),
+                    id: "__id__",
+                    payload: "__payload__"
+                  }}
+      end
+    end)
 
-    test "error"
+    test "ignore invalid messages", %{
+      conn: conn,
+      pid: pid,
+      stream_ref: stream_ref
+    } do
+      assert Gun.parse_message(
+               conn,
+               {:gun_ws, pid, stream_ref, {:text, "invalid"}}
+             ) == :ignore
 
-    test "ignored"
+      assert Gun.parse_message(conn, "invalid") == :ignore
+    end
+
+    test "critical error", %{
+      conn: conn,
+      pid: pid,
+      stream_ref: stream_ref
+    } do
+      reason = "Something went wrong"
+
+      assert Gun.parse_message(conn, {:gun_error, pid, stream_ref, reason}) ==
+               {:error,
+                %SocketError{
+                  cause: :critical_error,
+                  details: %{reason: reason}
+                }}
+    end
+
+    test "closed", %{
+      conn: conn,
+      pid: pid,
+      stream_ref: stream_ref
+    } do
+      assert Gun.parse_message(conn, {:gun_ws, pid, stream_ref, :close}) ==
+               {:error, %SocketError{cause: :closed}}
+    end
+
+    test "closed with payload", %{
+      conn: conn,
+      pid: pid,
+      stream_ref: stream_ref
+    } do
+      payload = "__payload__"
+
+      assert Gun.parse_message(
+               conn,
+               {:gun_ws, pid, stream_ref, {:close, payload}}
+             ) ==
+               {:error,
+                %SocketError{cause: :closed, details: %{payload: payload}}}
+    end
+
+    test "closed with code and payload", %{
+      conn: conn,
+      pid: pid,
+      stream_ref: stream_ref
+    } do
+      code = 1234
+      payload = "__payload__"
+
+      assert Gun.parse_message(
+               conn,
+               {:gun_ws, pid, stream_ref, {:close, code, payload}}
+             ) ==
+               {:error,
+                %SocketError{
+                  cause: :closed,
+                  details: %{code: code, payload: payload}
+                }}
+    end
   end
 end

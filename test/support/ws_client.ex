@@ -4,7 +4,7 @@ defmodule GraphQLWSClient.WSClient do
   @callback open(
               :inet.hostname() | :inet.ip_address(),
               :inet.port_number(),
-              :gun.opts()
+              map
             ) :: {:ok, pid} | {:error, any}
 
   @callback await_up(pid, timeout) ::
@@ -12,7 +12,7 @@ defmodule GraphQLWSClient.WSClient do
 
   @callback ws_upgrade(pid, binary) :: reference
 
-  @callback ws_send(pid, reference, :gun.ws_frame() | [:gun.ws_frame()]) :: :ok
+  @callback ws_send(pid, reference, frame :: term) :: :ok
 
   @callback close(pid) :: :ok
 end

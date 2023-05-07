@@ -484,7 +484,10 @@ defmodule GraphQLWSClient do
         _from,
         %State{} = state
       ) do
-    Driver.push_message(state.conn, %{id: subscription_id, type: "complete"})
+    Driver.push_message(state.conn, %Message{
+      type: :complete,
+      id: subscription_id
+    })
 
     {:reply, :ok, State.remove_listener(state, subscription_id)}
   end
@@ -575,9 +578,9 @@ defmodule GraphQLWSClient do
   end
 
   defp build_message(id, query, variables) do
-    %{
+    %Message{
+      type: :subscribe,
       id: id,
-      type: "subscribe",
       payload: %{
         query: query,
         variables: Map.new(variables)

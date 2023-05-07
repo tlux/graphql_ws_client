@@ -147,9 +147,9 @@ defmodule GraphQLWSClientTest do
       MockDriver
       |> expect(:connect, fn @conn -> {:ok, @conn} end)
       |> expect(:push_message, fn @conn,
-                                  %{
+                                  %Message{
+                                    type: :subscribe,
                                     id: subscription_id,
-                                    type: "subscribe",
                                     payload: %{
                                       query: @subscription_query,
                                       variables: @variables
@@ -195,9 +195,9 @@ defmodule GraphQLWSClientTest do
       MockDriver
       |> expect(:connect, fn @conn -> {:ok, @conn} end)
       |> expect(:push_message, fn @conn,
-                                  %{
+                                  %Message{
+                                    type: :subscribe,
                                     id: subscription_id,
-                                    type: "subscribe",
                                     payload: %{
                                       query: @subscription_query,
                                       variables: @variables
@@ -246,11 +246,11 @@ defmodule GraphQLWSClientTest do
 
       MockDriver
       |> expect(:connect, fn @conn -> {:ok, @conn} end)
-      |> expect(:push_message, fn @conn, %{type: "subscribe"} -> :ok end)
+      |> expect(:push_message, fn @conn, %Message{type: :subscribe} -> :ok end)
       |> expect(:push_message, fn @conn,
-                                  %{
-                                    id: subscription_id,
-                                    type: "complete"
+                                  %Message{
+                                    type: :complete,
+                                    id: subscription_id
                                   } ->
         send(test_pid, {:removed_subscription, subscription_id})
         :ok
@@ -281,11 +281,11 @@ defmodule GraphQLWSClientTest do
 
       MockDriver
       |> expect(:connect, fn @conn -> {:ok, @conn} end)
-      |> expect(:push_message, fn @conn, %{type: "subscribe"} -> :ok end)
+      |> expect(:push_message, fn @conn, %Message{type: :subscribe} -> :ok end)
       |> expect(:push_message, fn @conn,
-                                  %{
-                                    id: subscription_id,
-                                    type: "complete"
+                                  %Message{
+                                    type: :complete,
+                                    id: subscription_id
                                   } ->
         send(test_pid, {:removed_subscription, subscription_id})
         :ok

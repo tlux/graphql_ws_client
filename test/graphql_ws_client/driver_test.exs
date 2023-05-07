@@ -3,6 +3,7 @@ defmodule GraphQLWSClient.DriverTest do
 
   import Mox
 
+  alias GraphQLWSClient.Message
   alias GraphQLWSClient.Conn
   alias GraphQLWSClient.Config
   alias GraphQLWSClient.Driver
@@ -68,7 +69,7 @@ defmodule GraphQLWSClient.DriverTest do
 
   describe "push_message/1" do
     test "delegate to driver" do
-      msg = "__message__"
+      msg = %Message{type: :subscribe, id: "__id__", payload: "__payload__"}
 
       expect(Mock, :push_message, fn @conn, ^msg -> :ok end)
 
