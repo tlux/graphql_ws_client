@@ -3,11 +3,11 @@ defmodule GraphQLWSClient.DriverTest do
 
   import Mox
 
-  alias GraphQLWSClient.Message
-  alias GraphQLWSClient.Conn
   alias GraphQLWSClient.Config
+  alias GraphQLWSClient.Conn
   alias GraphQLWSClient.Driver
   alias GraphQLWSClient.Drivers.{Mock, MockWithoutInit}
+  alias GraphQLWSClient.Message
 
   setup :verify_on_exit!
 
