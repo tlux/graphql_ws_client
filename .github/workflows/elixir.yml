@@ -113,6 +113,4 @@ jobs:
 
     # Step: Execute the tests.
     - name: Run tests
-      run: mix coveralls.github
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: mix test --cover

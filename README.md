@@ -1,5 +1,7 @@
 # GraphQL Websocket Client
 
+![Pipeline Status](https://github.com/tlux/graphql_ws_client/actions/workflows/elixir.yml/badge.svg)
+
 A client for connecting to GraphQL websockets that are implemented following the
 [graphql-ws](https://github.com/enisdenjo/graphql-ws) conventions.
 
