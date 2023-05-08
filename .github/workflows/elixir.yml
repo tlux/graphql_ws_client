@@ -108,7 +108,7 @@ jobs:
         run: mix credo
 
       - name: Check typespecs with Dialyzer
-        run: mix dialyzer
+        run: mix dialyzer --format github
 
       - name: Run tests
         run: mix coveralls.github

@@ -67,6 +67,7 @@ defmodule GraphQLWSClient.MixProject do
       description:
         "A client for connecting with GraphQL over Websockets following the " <>
           "graphql-ws conventions.",
+      exclude_patterns: [~r/\Apriv\/plts/],
       licenses: ["MIT"],
       links: %{
         "GitHub" => @github_url
