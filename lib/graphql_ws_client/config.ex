@@ -11,7 +11,6 @@ defmodule GraphQLWSClient.Config do
           host: String.t(),
           init_payload: any,
           init_timeout: timeout,
-          json_library: module,
           path: String.t(),
           port: :inet.port_number(),
           upgrade_timeout: timeout
@@ -28,7 +27,6 @@ defmodule GraphQLWSClient.Config do
     connect_timeout: 5000,
     driver: GraphQLWSClient.Drivers.Gun,
     init_timeout: 5000,
-    json_library: Jason,
     path: "/",
     upgrade_timeout: 5000
   ]
@@ -59,8 +57,6 @@ defmodule GraphQLWSClient.Config do
 
   * `:init_timeout` - The number of milliseconds to wait for a `connection_ack`
     after initiating the connection. Defaults to `5000`.
-
-  * `:json_library` - The JSON decoder/encoder to use. Defaults to `Jason`.
 
   * `:path` - The path on the server. This is ignored when `:url` is specified
     instead. Defaults to `"/"`.

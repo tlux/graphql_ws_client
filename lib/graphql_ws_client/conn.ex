@@ -14,7 +14,7 @@ defmodule GraphQLWSClient.Conn do
           config: Config.t(),
           data: %{optional(atom) => any},
           driver: module,
-          opts: %{optional(atom) => any},
+          opts: any,
           pid: nil | pid
         }
 end

@@ -31,12 +31,16 @@ defmodule GraphQLWSClient.Drivers.GunTest do
   end
 
   describe "init/1" do
-    test "default adapter" do
-      assert Gun.init(%{}) == %{adapter: :gun}
+    test "min options" do
+      assert Gun.init(%{}) == %Gun.Opts{adapter: :gun, json_library: Jason}
     end
 
-    test "custom adapter" do
-      assert Gun.init(%{adapter: WSClientMock}) == %{adapter: WSClientMock}
+    test "max options" do
+      assert Gun.init(%{adapter: WSClientMock, json_library: SomeJSONLibrary}) ==
+               %Gun.Opts{
+                 adapter: WSClientMock,
+                 json_library: SomeJSONLibrary
+               }
     end
   end
 

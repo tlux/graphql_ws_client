@@ -12,7 +12,6 @@ defmodule GraphQLWSClient.ConfigTest do
         host: "example.com",
         init_payload: nil,
         init_timeout: 5000,
-        json_library: Jason,
         path: "/",
         port: 80,
         upgrade_timeout: 5000
@@ -58,7 +57,6 @@ defmodule GraphQLWSClient.ConfigTest do
         host: "example.com",
         init_payload: %{"foo" => "bar"},
         init_timeout: 3000,
-        json_library: SomeJSONLibrary,
         path: "/subscriptions",
         port: 8080,
         upgrade_timeout: 4000

@@ -14,7 +14,6 @@ defmodule GraphQLWSClientTest do
     host: "example.com",
     init_payload: %{"token" => "__token__"},
     init_timeout: 2000,
-    json_library: Jason,
     path: "/subscriptions",
     port: 1234,
     upgrade_timeout: 1500

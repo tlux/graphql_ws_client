@@ -9,7 +9,7 @@ defmodule GraphQLWSClient.Driver do
   Optional callback that prepares the `:opts` stored in the `#{inspect(Conn)}`.
   Can be used to set default values.
   """
-  @callback init(opts :: map) :: map
+  @callback init(opts :: map) :: any
 
   @doc """
   Connects to the socket and returns the updated `#{inspect(Conn)}`.

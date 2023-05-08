@@ -1,5 +1,5 @@
 defmodule GraphQLWSClient.QueryError do
-  @doc """
+  @moduledoc """
   Exception that contains errors from a GraphQL query.
   """
 
