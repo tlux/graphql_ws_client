@@ -320,6 +320,13 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       assert Gun.parse_message(conn, "invalid") == :ignore
     end
 
+    test "disconnect when gun down", %{conn: conn, pid: pid} do
+      assert Gun.parse_message(
+               conn,
+               {:gun_down, pid, :ws, :normal, nil}
+             ) == :disconnect
+    end
+
     test "critical error", %{
       conn: conn,
       pid: pid,
