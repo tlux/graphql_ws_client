@@ -14,8 +14,7 @@ defmodule GraphQLWSClient.Drivers.Gun do
 
   @impl true
   def connect(%Conn{config: config, opts: opts} = conn) do
-    with {:start, {:ok, _}} <-
-           {:start, Application.ensure_all_started(:gun)},
+    with :ok <- ensure_adapter_ready(opts.adapter),
          {:open, {:ok, pid}} <-
            {:open,
             opts.adapter.open(
@@ -48,6 +47,19 @@ defmodule GraphQLWSClient.Drivers.Gun do
         error
     end
   end
+
+  defp ensure_adapter_ready(:gun) do
+    case Application.ensure_all_started(:gun) do
+      {:ok, _} ->
+        :ok
+
+      {:error, {_app, reason}} ->
+        {:error,
+         %SocketError{cause: :critical_error, details: %{reason: reason}}}
+    end
+  end
+
+  defp ensure_adapter_ready(_adapter), do: :ok
 
   @impl true
   def disconnect(%Conn{pid: pid} = conn) do
