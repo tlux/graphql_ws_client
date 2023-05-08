@@ -56,9 +56,9 @@ jobs:
           cache-name: cache-elixir-deps
         with:
           path: deps
-          key: ${{runner.os}}-mix-${{env.cache-name}}-${{hashFiles('**/mix.lock')}}
+          key: ${{runner.os}}-elixir-${{matrix.elixir}}-otp-${{matrix.otp}}-mix-${{env.cache-name}}-${{hashFiles('**/mix.lock')}}
           restore-keys: |
-            ${{runner.os}}-mix-${{env.cache-name}}-
+            ${{runner.os}}-elixir-${{matrix.elixir}}-otp-${{matrix.otp}}-mix-${{env.cache-name}}-
 
       # Step: Define how to cache the `_build` directory. After the first run,
       # this speeds up tests runs a lot. This includes not re-compiling our
@@ -70,9 +70,9 @@ jobs:
           cache-name: cache-compiled-build
         with:
           path: _build
-          key: ${{runner.os}}-mix-${{env.cache-name}}-${{hashFiles('**/mix.lock')}}
+          key: ${{runner.os}}-elixir-${{matrix.elixir}}-otp-${{matrix.otp}}-mix-${{env.cache-name}}-${{hashFiles('**/mix.lock')}}
           restore-keys: |
-            ${{runner.os}}-mix-${{env.cache-name}}-
+            ${{runner.os}}-elixir-${{matrix.elixir}}-otp-${{matrix.otp}}-mix-${{env.cache-name}}-
 
       # Step: Cache Dialyzer PLTs.
       - name: Cache Dialyzer PLTs
@@ -82,7 +82,7 @@ jobs:
           cache-name: cache-plts
         with:
           path: priv/plts
-          key: ${{runner.os}}-mix-${{env.cache-name}}
+          key: ${{runner.os}}-elixir-${{matrix.elixir}}-otp-${{matrix.otp}}-mix-${{env.cache-name}}
 
       # Step: Download project dependencies. If unchanged, uses
       # the cached version.
