@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/hexpm/l/graphql_ws_client.svg)](https://github.com/tlux/graphql_ws_client/blob/main/LICENSE.md)
 [![Last Updated](https://img.shields.io/github/last-commit/tlux/graphql_ws_client.svg)](https://github.com/tlux/graphql_ws_client/commits/main)
 
-A client for connecting to GraphQL websockets that are implemented following the
+A client for connecting with GraphQL over Websockets following the
 [graphql-ws](https://github.com/enisdenjo/graphql-ws) conventions.
 
 ## Installation
@@ -48,6 +48,26 @@ receive do
 end
 
 GraphQLClient.close(client)
+```
+
+## Custom Client
+
+If you want to run the client as part of a supervision tree in your
+application, you can also `use GraphQLWSClient` to create your own client.
+
+```elixir
+defmodule MyClient do
+  use GraphQLWSClient, otp_app: :my_app
+end
+```
+
+Then, you can configure your client using a config file:
+
+```elixir
+import Config
+
+config :my_app, MyClient,
+  url: "ws://localhost:4000/socket"
 ```
 
 ## Docs

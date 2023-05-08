@@ -1,10 +1,13 @@
 defmodule GraphQLWSClient.MixProject do
   use Mix.Project
 
+  @github_url "https://github.com/tlux/graphql_ws_client"
+  @version "0.1.0"
+
   def project do
     [
       app: :graphql_ws_client,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -20,19 +23,11 @@ defmodule GraphQLWSClient.MixProject do
         dialyzer: :test,
         test: :test
       ],
-      dialyzer: dialyzer()
-    ]
-  end
+      dialyzer: dialyzer(),
 
-  def package do
-    [
-      description:
-        "A client for connecting with GraphQL websockets following the " <>
-          "graphql-ws conventions.",
-      licenses: ["MIT"],
-      links: %{
-        "GitHub" => "https://github.com/tlux/graphql_ws_client"
-      }
+      # Docs
+      name: "GraphQL-over-Websocket Client",
+      docs: docs()
     ]
   end
 
@@ -64,6 +59,40 @@ defmodule GraphQLWSClient.MixProject do
       plt_add_apps: [:ex_unit],
       plt_add_deps: :app_tree,
       plt_file: {:no_warn, "priv/plts/graphql_ws_client.plt"}
+    ]
+  end
+
+  def package do
+    [
+      description:
+        "A client for connecting with GraphQL over Websockets following the " <>
+          "graphql-ws conventions.",
+      licenses: ["MIT"],
+      links: %{
+        "GitHub" => @github_url
+      }
+    ]
+  end
+
+  defp docs do
+    [
+      extras: [
+        "LICENSE.md": [title: "License"],
+        "README.md": [title: "Readme"]
+      ],
+      main: "readme",
+      source_url: @github_url,
+      source_ref: "v#{@version}",
+      groups_for_modules: [
+        Driver: [
+          GraphQLWSClient.Conn,
+          GraphQLWSClient.Driver,
+          GraphQLWSClient.Message
+        ],
+        "Included Drivers": [
+          GraphQLWSClient.Drivers.Gun
+        ]
+      ]
     ]
   end
 
