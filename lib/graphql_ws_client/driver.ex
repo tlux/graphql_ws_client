@@ -30,7 +30,10 @@ defmodule GraphQLWSClient.Driver do
   Parses a message received from the socket.
   """
   @callback parse_message(Conn.t(), msg :: any) ::
-              {:ok, Message.t()} | {:error, SocketError.t()} | :ignore
+              {:ok, Message.t()}
+              | {:error, SocketError.t()}
+              | :ignore
+              | :disconnect
 
   @optional_callbacks [init: 1]
 
@@ -75,7 +78,7 @@ defmodule GraphQLWSClient.Driver do
 
   @doc false
   @spec parse_message(Conn.t(), msg :: any) ::
-          {:ok, Message.t()} | {:error, SocketError.t()} | :ignore
+          {:ok, Message.t()} | {:error, SocketError.t()} | :ignore | :disconnect
   def parse_message(%Conn{driver: driver} = conn, msg) do
     driver.parse_message(conn, msg)
   end

@@ -172,6 +172,8 @@ defmodule GraphQLWSClient.Drivers.Gun do
   end
 
   @impl true
+  def parse_message(%Conn{}, {:gun_down, _, _, _, _}), do: :disconnect
+
   def parse_message(
         %Conn{opts: opts},
         {:gun_ws, _pid, _stream_ref, {:text, text}}

@@ -497,13 +497,7 @@ defmodule GraphQLWSClient do
         {:DOWN, _ref, :process, pid, _reason},
         %State{conn: %Conn{pid: pid}} = state
       ) do
-    Logger.warn("Websocket process went down: #{inspect(pid)}")
-
-    Enum.each(state.queries, fn {_, from} ->
-      Connection.reply(from, {:error, %SocketError{cause: :closed}})
-    end)
-
-    {:disconnect, :socket_down, State.reset_queries(state)}
+    handle_socket_down(state)
   end
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, %State{} = state) do
@@ -516,7 +510,18 @@ defmodule GraphQLWSClient do
       {:ok, msg} -> handle_message(msg, state)
       {:error, error} -> handle_error(error, state)
       :ignore -> {:noreply, state}
+      :disconnect -> handle_socket_down(state)
     end
+  end
+
+  defp handle_socket_down(%State{} = state) do
+    Logger.warn("Websocket process went down: #{inspect(state.conn.pid)}")
+
+    Enum.each(state.queries, fn {_, from} ->
+      Connection.reply(from, {:error, %SocketError{cause: :closed}})
+    end)
+
+    {:disconnect, :socket_down, State.reset_queries(state)}
   end
 
   defp handle_message(%Message{type: :complete, id: id}, %State{} = state) do
