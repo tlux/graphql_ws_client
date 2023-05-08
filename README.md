@@ -4,7 +4,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/tlux/graphql_ws_client/badge.svg?branch=main)](https://coveralls.io/github/tlux/graphql_ws_client?branch=main)
 [![Module Version](https://img.shields.io/hexpm/v/graphql_ws_client.svg)](https://hex.pm/packages/graphql_ws_client)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/graphql_ws_client/)
-[![License](https://img.shields.io/hexpm/l/graphql_ws_client.svg)](https://github.com/tlux/graphql_ws_client/blob/main/LICENSE)
+[![License](https://img.shields.io/hexpm/l/graphql_ws_client.svg)](https://github.com/tlux/graphql_ws_client/blob/main/LICENSE.md)
 [![Last Updated](https://img.shields.io/github/last-commit/tlux/graphql_ws_client.svg)](https://github.com/tlux/graphql_ws_client/commits/main)
 
 A client for connecting to GraphQL websockets that are implemented following the
@@ -25,6 +25,29 @@ def deps do
     {:jason, "~> 1.4"},
   ]
 end
+```
+
+## Usage
+
+```elixir
+client = GraphQLWSClient.start_link(url: "ws://localhost:4000/socket")
+
+{:ok, subscription_id} = GraphQLWSClient.subscribe(
+  client,
+  "subscription PostCreated { ... }"
+)
+
+{:ok, _} = GraphQLWSClient.query(
+  client,
+  "mutation CreatePost { ... }"
+)
+
+receive do
+  %GraphQLWSClient.Event{} = event ->
+    IO.inspect(event)
+end
+
+GraphQLClient.close(client)
 ```
 
 ## Docs
