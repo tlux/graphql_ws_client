@@ -2,7 +2,7 @@ defmodule GraphQLWSClient.MixProject do
   use Mix.Project
 
   @github_url "https://github.com/tlux/graphql_ws_client"
-  @version "0.1.2"
+  @version "0.1.3"
 
   def project do
     [
