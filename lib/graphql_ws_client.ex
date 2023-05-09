@@ -505,14 +505,16 @@ defmodule GraphQLWSClient do
     {:noreply, State.remove_listener_by_pid(state, pid)}
   end
 
-  def handle_info(msg, %State{} = state) do
-    case Driver.parse_message(state.conn, msg) do
+  def handle_info(msg, %State{connected?: true, conn: conn} = state) do
+    case Driver.parse_message(conn, msg) do
       {:ok, msg} -> handle_message(msg, state)
       {:error, error} -> handle_error(error, state)
       :ignore -> {:noreply, state}
       :disconnect -> handle_socket_down(state)
     end
   end
+
+  def handle_info(_msg, state), do: {:noreply, state}
 
   defp handle_socket_down(%State{} = state) do
     Logger.warn("Websocket process went down: #{inspect(state.conn.pid)}")

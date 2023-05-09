@@ -548,10 +548,21 @@ defmodule GraphQLWSClientTest do
       }
     end
 
-    test "ignored message", %{client: client} do
+    test "ignore message with unexpected format", %{client: client} do
       expect(MockDriver, :parse_message, fn @conn, :test_message ->
         :ignore
       end)
+
+      send(client, :test_message)
+
+      refute_receive %Event{}
+    end
+
+    test "ignore message when not connected", %{client: client} do
+      stub(MockDriver, :disconnect, fn @conn -> :ok end)
+
+      :ok = GraphQLWSClient.close(client)
+      refute GraphQLWSClient.connected?(client)
 
       send(client, :test_message)
 
