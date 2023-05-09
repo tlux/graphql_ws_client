@@ -49,6 +49,22 @@ defmodule GraphQLWSClient.ConfigTest do
              }
     end
 
+    test "minimal config with http:// URL" do
+      assert Config.new(url: "http://example.com") == %Config{
+               host: "example.com",
+               port: 80,
+               path: "/"
+             }
+    end
+
+    test "minimal config with https:// URL" do
+      assert Config.new(url: "https://example.com") == %Config{
+               host: "example.com",
+               port: 443,
+               path: "/"
+             }
+    end
+
     test "full config" do
       opts = [
         backoff_interval: 1000,
@@ -73,9 +89,9 @@ defmodule GraphQLWSClient.ConfigTest do
 
     test "error when URL has invalid protocol" do
       assert_raise ArgumentError,
-                   "URL has invalid protocol: http (allowed: ws, wss)",
+                   "URL has invalid protocol: ftp (allowed: ws, wss)",
                    fn ->
-                     Config.new(url: "http://example.com")
+                     Config.new(url: "ftp://example.com")
                    end
     end
 
