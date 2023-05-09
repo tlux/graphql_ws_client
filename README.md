@@ -20,7 +20,7 @@ also need the `jason` and `gun` packages (or provide a custom
 ```elixir
 def deps do
   [
-    {:graphql_ws_client, "~> 0.1.0"},
+    {:graphql_ws_client, "~> 0.1"},
     {:gun, "~> 2.0"},
     {:jason, "~> 1.4"},
   ]
