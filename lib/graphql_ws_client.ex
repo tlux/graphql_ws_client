@@ -563,11 +563,8 @@ defmodule GraphQLWSClient do
         "#{inspect(state.conn.pid)} went down"
     end)
 
-    Enum.each(state.queries, fn {_, from} ->
-      Connection.reply(from, {:error, %SocketError{cause: :closed}})
-    end)
-
-    {:disconnect, :socket_down, State.reset_subscriptions(state)}
+    error = %SocketError{cause: :closed}
+    {:disconnect, :socket_down, flush_subscriptions_with_error(error, state)}
   end
 
   defp handle_message(%Message{type: :complete, id: id}, %State{} = state) do
@@ -631,11 +628,19 @@ defmodule GraphQLWSClient do
   defp handle_error(error, %State{} = state) do
     Logger.error("[graphql_ws_client] #{Exception.message(error)}")
 
+    {:disconnect, :socket_error, flush_subscriptions_with_error(error, state)}
+  end
+
+  defp flush_subscriptions_with_error(error, state) do
     Enum.each(state.queries, fn {_, from} ->
       Connection.reply(from, {:error, error})
     end)
 
-    {:disconnect, :socket_error, State.reset_subscriptions(state)}
+    Enum.each(state.listeners, fn {id, pid} ->
+      send(pid, %Event{subscription_id: id, error: error})
+    end)
+
+    State.reset_subscriptions(state)
   end
 
   defp close_connection(%State{connected?: false} = state), do: state
