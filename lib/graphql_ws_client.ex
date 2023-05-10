@@ -503,7 +503,6 @@ defmodule GraphQLWSClient do
 
     Driver.push_message(state.conn, build_message(id, query, variables))
 
-    # {:noreply, State.add_listener(state, id, listener)}
     {:reply, {:ok, id}, State.add_listener(state, id, listener)}
   end
 
