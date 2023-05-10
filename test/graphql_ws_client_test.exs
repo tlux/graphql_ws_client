@@ -505,21 +505,32 @@ defmodule GraphQLWSClientTest do
 
   describe "listener" do
     setup do
+      pid = spawn(fn -> Process.sleep(:infinity) end)
+      conn = %{@conn | pid: pid}
+
       MockDriver
-      |> expect(:connect, fn @conn -> {:ok, @conn} end)
-      |> expect(:push_message, fn @conn, _ -> :ok end)
+      |> expect(:connect, fn @conn -> {:ok, conn} end)
+      |> expect(:push_message, fn ^conn, _ -> :ok end)
 
       client = start_supervised!({GraphQLWSClient, @config})
 
       subscription_id = GraphQLWSClient.subscribe!(client, @query, @variables)
 
-      {:ok, client: client, subscription_id: subscription_id}
+      on_exit(fn ->
+        Process.exit(pid, :normal)
+      end)
+
+      {:ok, client: client, conn: conn, subscription_id: subscription_id}
     end
 
-    test "next message", %{client: client, subscription_id: subscription_id} do
+    test "next message", %{
+      client: client,
+      conn: conn,
+      subscription_id: subscription_id
+    } do
       result = %{"foo" => "bar"}
 
-      expect(MockDriver, :parse_message, fn @conn, :test_message ->
+      expect(MockDriver, :parse_message, fn ^conn, :test_message ->
         {:ok, %Message{id: subscription_id, type: :next, payload: result}}
       end)
 
@@ -532,10 +543,14 @@ defmodule GraphQLWSClientTest do
       }
     end
 
-    test "error message", %{client: client, subscription_id: subscription_id} do
+    test "error message", %{
+      client: client,
+      conn: conn,
+      subscription_id: subscription_id
+    } do
       errors = [%{"message" => "Something went wrong"}]
 
-      expect(MockDriver, :parse_message, fn @conn, :test_message ->
+      expect(MockDriver, :parse_message, fn ^conn, :test_message ->
         {:ok, %Message{id: subscription_id, type: :error, payload: errors}}
       end)
 
@@ -548,8 +563,8 @@ defmodule GraphQLWSClientTest do
       }
     end
 
-    test "ignore message with unexpected format", %{client: client} do
-      expect(MockDriver, :parse_message, fn @conn, :test_message ->
+    test "ignore message with unexpected format", %{client: client, conn: conn} do
+      expect(MockDriver, :parse_message, fn ^conn, :test_message ->
         :ignore
       end)
 
@@ -558,8 +573,8 @@ defmodule GraphQLWSClientTest do
       refute_receive %Event{}
     end
 
-    test "ignore message when not connected", %{client: client} do
-      stub(MockDriver, :disconnect, fn @conn -> :ok end)
+    test "ignore message when not connected", %{client: client, conn: conn} do
+      stub(MockDriver, :disconnect, fn ^conn -> :ok end)
 
       :ok = GraphQLWSClient.close(client)
       refute GraphQLWSClient.connected?(client)
@@ -567,6 +582,46 @@ defmodule GraphQLWSClientTest do
       send(client, :test_message)
 
       refute_receive %Event{}
+    end
+
+    test "notify on parse error", %{
+      client: client,
+      conn: conn,
+      subscription_id: subscription_id
+    } do
+      error = %SocketError{cause: :critical_error}
+
+      MockDriver
+      |> expect(:parse_message, fn ^conn, :test_message ->
+        {:error, error}
+      end)
+      # ensure reconnect happens
+      |> expect(:disconnect, fn ^conn -> :ok end)
+      |> expect(:connect, fn @conn -> {:ok, conn} end)
+
+      send(client, :test_message)
+
+      assert_receive %Event{
+        subscription_id: ^subscription_id,
+        result: nil,
+        error: ^error
+      }
+
+      # ensure listeners removed on disconnect
+      assert get_state(client).listeners == %{}
+    end
+
+    test "notify when socket goes down", %{
+      conn: conn,
+      subscription_id: subscription_id
+    } do
+      Process.exit(conn.pid, :kill)
+
+      assert_receive %Event{
+        subscription_id: ^subscription_id,
+        result: nil,
+        error: %SocketError{cause: :closed}
+      }
     end
   end
 

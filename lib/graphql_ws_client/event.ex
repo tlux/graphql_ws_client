@@ -3,8 +3,6 @@ defmodule GraphQLWSClient.Event do
   A event for a subscription.
   """
 
-  alias GraphQLWSClient.QueryError
-
   defstruct [:subscription_id, :result, :error]
 
   @type t ::
@@ -16,6 +14,6 @@ defmodule GraphQLWSClient.Event do
           | %__MODULE__{
               subscription_id: GraphQLWSClient.subscription_id(),
               result: nil,
-              error: QueryError.t()
+              error: Exception.t()
             }
 end
