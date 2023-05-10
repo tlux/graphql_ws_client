@@ -26,25 +26,39 @@ defmodule GraphQLWSClient.Client do
   @doc """
   Sends a query to the server and returns the result.
   """
-  @callback query(GraphQLWSClient.query(), map, timeout) ::
+  @callback query(GraphQLWSClient.query(), GraphQLWSClient.variables(), timeout) ::
               {:ok, any} | {:error, Exception.t()}
 
   @doc """
   Sends a query to the server and returns the result. Raises on error.
   """
-  @callback query!(GraphQLWSClient.query(), map, timeout) :: any | no_return
+  @callback query!(
+              GraphQLWSClient.query(),
+              GraphQLWSClient.variables(),
+              timeout
+            ) :: any | no_return
 
   @doc """
   Sends a subscription to the server and returns the subscription ID.
   """
-  @callback subscribe(GraphQLWSClient.query(), map, pid, timeout) ::
+  @callback subscribe(
+              GraphQLWSClient.query(),
+              GraphQLWSClient.variables(),
+              pid,
+              timeout
+            ) ::
               {:ok, GraphQLWSClient.subscription_id()} | {:error, Exception.t()}
 
   @doc """
   Sends a subscription to the server and returns the subscription ID. Raises on
   error.
   """
-  @callback subscribe!(GraphQLWSClient.query(), map, pid, timeout) ::
+  @callback subscribe!(
+              GraphQLWSClient.query(),
+              GraphQLWSClient.variables(),
+              pid,
+              timeout
+            ) ::
               GraphQLWSClient.subscription_id() | no_return
 
   @doc """

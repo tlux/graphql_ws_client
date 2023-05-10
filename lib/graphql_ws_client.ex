@@ -76,6 +76,11 @@ defmodule GraphQLWSClient do
   """
   @type query :: String.t()
 
+  @typedoc """
+  Type for variables that are interpolated into the query.
+  """
+  @type variables :: %{optional(atom | String.t()) => any} | Keyword.t()
+
   defmacro __using__(opts) do
     otp_app = Keyword.fetch!(opts, :otp_app)
 
@@ -263,7 +268,7 @@ defmodule GraphQLWSClient do
       ...> )
       {:ok, %{"data" => %{"posts" => %{"body" => "Lorem Ipsum"}}}}
   """
-  @spec query(client, query, map, timeout) ::
+  @spec query(client, query, variables, timeout) ::
           {:ok, any} | {:error, Exception.t()}
   def query(client, query, variables \\ %{}, timeout \\ @default_timeout) do
     Connection.call(client, {:query, query, variables}, timeout)
@@ -282,7 +287,7 @@ defmodule GraphQLWSClient do
       ...> )
       %{"data" => %{"posts" => %{"body" => "Lorem Ipsum"}}}
   """
-  @spec query!(client, query, map, timeout) :: any | no_return
+  @spec query!(client, query, variables, timeout) :: any | no_return
   def query!(client, query, variables \\ %{}, timeout \\ @default_timeout) do
     case query(client, query, variables, timeout) do
       {:ok, result} -> result
@@ -307,7 +312,7 @@ defmodule GraphQLWSClient do
       ...> )
       {:ok, #{inspect(UUID.uuid4())}}
   """
-  @spec subscribe(client, query, map, pid, timeout) ::
+  @spec subscribe(client, query, variables, pid, timeout) ::
           {:ok, subscription_id} | {:error, Exception.t()}
   def subscribe(
         client,
@@ -336,7 +341,7 @@ defmodule GraphQLWSClient do
       ...> )
       #{inspect(UUID.uuid4())}
   """
-  @spec subscribe!(client, query, map, pid, timeout) ::
+  @spec subscribe!(client, query, variables, pid, timeout) ::
           subscription_id | no_return
   def subscribe!(
         client,
