@@ -1,11 +1,10 @@
 defmodule GraphQLWSClient.IntegrationTest do
   use ExUnit.Case
 
-  alias GraphQLWSClient.{Event, QueryError}
+  alias GraphQLWSClient.{Event, QueryError, TestClient}
 
   setup do
-    client = start_supervised!(TestGraphQLWSClient, id: :graphql_ws_client)
-    {:ok, client: client}
+    {:ok, client: start_supervised!(TestClient, id: :test_client)}
   end
 
   describe "query" do
@@ -13,7 +12,7 @@ defmodule GraphQLWSClient.IntegrationTest do
 
     test "success" do
       assert {:ok, result} =
-               TestGraphQLWSClient.query("""
+               GraphQLWSClient.query(TestClient, """
                  query Posts {
                    posts {
                      id
@@ -28,7 +27,8 @@ defmodule GraphQLWSClient.IntegrationTest do
 
     test "error" do
       assert {:ok, %{"data" => nil, "errors" => errors}} =
-               TestGraphQLWSClient.query(
+               GraphQLWSClient.query(
+                 TestClient,
                  """
                    mutation CreatePost($author: String!, $body: String!) {
                      createPost(author: $author, body: $body) {
@@ -46,7 +46,8 @@ defmodule GraphQLWSClient.IntegrationTest do
 
     test "critical error" do
       assert {:error, %QueryError{errors: errors}} =
-               TestGraphQLWSClient.query(
+               GraphQLWSClient.query(
+                 TestClient,
                  """
                    mutation CreatePost($author: String!, $body: String!) {
                      createPost(author: $author, body: $body) {
@@ -67,7 +68,7 @@ defmodule GraphQLWSClient.IntegrationTest do
 
     test "success" do
       {:ok, subscription_id} =
-        TestGraphQLWSClient.subscribe("""
+        GraphQLWSClient.subscribe(TestClient, """
           subscription PostCreated {
             postCreated {
               id
@@ -76,7 +77,8 @@ defmodule GraphQLWSClient.IntegrationTest do
         """)
 
       result =
-        TestGraphQLWSClient.query!(
+        GraphQLWSClient.query!(
+          TestClient,
           """
             mutation CreatePost($author: String!, $body: String!) {
               createPost(author: $author, body: $body) {
@@ -101,7 +103,7 @@ defmodule GraphQLWSClient.IntegrationTest do
 
     test "error" do
       {:ok, subscription_id} =
-        TestGraphQLWSClient.subscribe("""
+        GraphQLWSClient.subscribe(TestClient, """
           subscription PostCreated {
             postCreated {
               i
@@ -125,7 +127,7 @@ defmodule GraphQLWSClient.IntegrationTest do
 
     test "success" do
       {:ok, subscription_id} =
-        TestGraphQLWSClient.subscribe("""
+        GraphQLWSClient.subscribe(TestClient, """
           subscription PostCreated {
             postCreated {
               id
@@ -133,10 +135,11 @@ defmodule GraphQLWSClient.IntegrationTest do
           }
         """)
 
-      assert :ok = TestGraphQLWSClient.unsubscribe(subscription_id)
+      assert :ok = GraphQLWSClient.unsubscribe(TestClient, subscription_id)
 
       result =
-        TestGraphQLWSClient.query!(
+        GraphQLWSClient.query!(
+          TestClient,
           """
             mutation CreatePost($author: String!, $body: String!) {
               createPost(author: $author, body: $body) {
@@ -160,7 +163,7 @@ defmodule GraphQLWSClient.IntegrationTest do
       assert Process.alive?(client)
       %{mod_state: %{conn: %{pid: pid}}} = :sys.get_state(client)
 
-      stop_supervised!(:graphql_ws_client)
+      stop_supervised!(:test_client)
 
       refute Process.alive?(client)
       refute Process.alive?(pid)

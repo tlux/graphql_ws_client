@@ -354,6 +354,20 @@ defmodule GraphQLWSClientTest do
                {:error, %SocketError{cause: :closed}}
     end
 
+    test "timeout" do
+      config = %{@config | query_timeout: 200}
+      conn = %{@conn | config: config}
+
+      MockDriver
+      |> expect(:connect, fn _ -> {:ok, conn} end)
+      |> expect(:push_message, fn _, _ -> :ok end)
+
+      client = start_supervised!({GraphQLWSClient, config})
+
+      assert GraphQLWSClient.query(client, @query, @variables) ==
+               {:error, %SocketError{cause: :timeout}}
+    end
+
     test "disconnect on parse error" do
       error = %SocketError{cause: :critical_error}
 
@@ -427,6 +441,19 @@ defmodule GraphQLWSClientTest do
       client = start_supervised!({GraphQLWSClient, @config})
 
       assert {:error, _} = GraphQLWSClient.query(client, @query, @variables)
+    end
+  end
+
+  describe "query/4" do
+    test "timeout" do
+      MockDriver
+      |> expect(:connect, fn _ -> {:ok, @conn} end)
+      |> expect(:push_message, fn _, _ -> :ok end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert GraphQLWSClient.query(client, @query, @variables, 200) ==
+               {:error, %SocketError{cause: :timeout}}
     end
   end
 
