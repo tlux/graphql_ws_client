@@ -6,14 +6,14 @@ defmodule GraphQLWSClient.Drivers.Gun.OptsTest do
   describe "new/1" do
     test "default options" do
       assert Opts.new(%{}) == %Opts{
-               ack_timeout: 5000,
+               ack_timeout: :timer.seconds(5),
                adapter: :gun,
                connect_options: %{
-                 connect_timeout: 5000,
+                 connect_timeout: :timer.seconds(5),
                  protocols: [:http]
                },
                json_library: Jason,
-               upgrade_timeout: 5000
+               upgrade_timeout: :timer.seconds(5)
              }
     end
 

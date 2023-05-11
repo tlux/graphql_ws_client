@@ -9,6 +9,7 @@ defmodule GraphQLWSClient.Config do
           driver: module | {module, Keyword.t() | %{optional(atom) => any}},
           host: String.t(),
           init_payload: any,
+          query_timeout: timeout,
           path: String.t(),
           port: :inet.port_number()
         }
@@ -19,9 +20,10 @@ defmodule GraphQLWSClient.Config do
     :host,
     :init_payload,
     :port,
-    backoff_interval: 3000,
+    backoff_interval: :timer.seconds(3),
     connect_on_start: true,
     driver: GraphQLWSClient.Drivers.Gun,
+    query_timeout: :timer.seconds(5),
     path: "/"
   ]
 

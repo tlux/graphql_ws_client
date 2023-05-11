@@ -46,7 +46,6 @@ defmodule GraphQLWSClient do
   require Logger
 
   alias GraphQLWSClient.{
-    Client,
     Config,
     Conn,
     Driver,
@@ -57,7 +56,7 @@ defmodule GraphQLWSClient do
     State
   }
 
-  @default_timeout 5000
+  @client_timeout :infinity
 
   @typedoc """
   Type for a client process.
@@ -83,8 +82,6 @@ defmodule GraphQLWSClient do
     otp_app = Keyword.fetch!(opts, :otp_app)
 
     quote location: :keep do
-      @behaviour Client
-
       @doc false
       @spec __config__() :: Config.t()
       def __config__ do
@@ -93,7 +90,9 @@ defmodule GraphQLWSClient do
         |> Config.new()
       end
 
-      @impl Client
+      @doc """
+      Starts the `#{unquote(__MODULE__)}`.
+      """
       def start_link(opts \\ []) do
         unquote(__MODULE__).start_link(
           __config__(),
@@ -110,83 +109,6 @@ defmodule GraphQLWSClient do
           id: __MODULE__,
           start: {__MODULE__, :start_link, [opts]}
         }
-      end
-
-      @impl Client
-      def open(timeout \\ unquote(@default_timeout)) do
-        unquote(__MODULE__).open(__MODULE__, timeout)
-      end
-
-      @impl Client
-      def open!(timeout \\ unquote(@default_timeout)) do
-        unquote(__MODULE__).open!(__MODULE__, timeout)
-      end
-
-      @impl Client
-      def open_with(init_payload, timeout \\ unquote(@default_timeout)) do
-        unquote(__MODULE__).open_with(__MODULE__, init_payload, timeout)
-      end
-
-      @impl Client
-      def open_with!(init_payload, timeout \\ unquote(@default_timeout)) do
-        unquote(__MODULE__).open_with!(__MODULE__, init_payload, timeout)
-      end
-
-      @impl Client
-      def close(timeout \\ unquote(@default_timeout)) do
-        unquote(__MODULE__).close(__MODULE__, timeout)
-      end
-
-      @impl Client
-      def query(query, variables \\ %{}, timeout \\ unquote(@default_timeout)) do
-        unquote(__MODULE__).query(__MODULE__, query, variables, timeout)
-      end
-
-      @impl Client
-      def query!(query, variables \\ %{}, timeout \\ unquote(@default_timeout)) do
-        unquote(__MODULE__).query!(__MODULE__, query, variables, timeout)
-      end
-
-      @impl Client
-      def subscribe(
-            query,
-            variables \\ %{},
-            listener \\ self(),
-            timeout \\ unquote(@default_timeout)
-          ) do
-        unquote(__MODULE__).subscribe(
-          __MODULE__,
-          query,
-          variables,
-          listener,
-          timeout
-        )
-      end
-
-      @impl Client
-      def subscribe!(
-            query,
-            variables \\ %{},
-            listener \\ self(),
-            timeout \\ unquote(@default_timeout)
-          ) do
-        unquote(__MODULE__).subscribe!(
-          __MODULE__,
-          query,
-          variables,
-          listener,
-          timeout
-        )
-      end
-
-      @impl Client
-      def unsubscribe(subscription_id, timeout \\ unquote(@default_timeout)) do
-        unquote(__MODULE__).unsubscribe(__MODULE__, subscription_id, timeout)
-      end
-
-      @impl Client
-      def unsubscribe!(subscription_id, timeout \\ unquote(@default_timeout)) do
-        unquote(__MODULE__).unsubscribe!(__MODULE__, subscription_id, timeout)
       end
 
       defoverridable child_spec: 1
@@ -236,55 +158,53 @@ defmodule GraphQLWSClient do
   @doc """
   Indicates whether the client is connected to the Websocket.
   """
-  @spec connected?(client, timeout) :: boolean
-  def connected?(client, timeout \\ @default_timeout) do
-    Connection.call(client, :connected?, timeout)
+  @spec connected?(client) :: boolean
+  def connected?(client) do
+    Connection.call(client, :connected?, @client_timeout)
   end
 
   @doc """
   Opens the connection to the websocket.
   """
-  @spec open(client, timeout) :: :ok | {:error, Exception.t()}
-  def open(client, timeout \\ @default_timeout) do
-    Connection.call(client, :open, timeout)
+  @spec open(client) :: :ok | {:error, Exception.t()}
+  def open(client) do
+    Connection.call(client, :open, @client_timeout)
   end
 
   @doc """
   Opens the connection to the websocket. Raises on error.
   """
-  @spec open!(client, timeout) :: :ok | no_return
-  def open!(client, timeout \\ @default_timeout) do
-    client
-    |> open(timeout)
-    |> bang!()
+  @spec open!(client) :: :ok | no_return
+  def open!(client) do
+    client |> open() |> bang!()
   end
 
   @doc """
   Opens the connection to the websocket using a custom payload.
   """
   @doc since: "1.0.0"
-  @spec open_with(client, any, timeout) :: :ok | {:error, Exception.t()}
-  def open_with(client, init_payload, timeout \\ @default_timeout) do
-    Connection.call(client, {:open_with, init_payload}, timeout)
+  @spec open_with(client, any) :: :ok | {:error, Exception.t()}
+  def open_with(client, init_payload) do
+    Connection.call(client, {:open_with, init_payload}, @client_timeout)
   end
 
   @doc """
   Opens the connection to the websocket using a custom payload. Raises on error.
   """
   @doc since: "1.0.0"
-  @spec open_with!(client, any, timeout) :: :ok | no_return
-  def open_with!(client, init_payload, timeout \\ @default_timeout) do
+  @spec open_with!(client, any) :: :ok | no_return
+  def open_with!(client, init_payload) do
     client
-    |> open_with(init_payload, timeout)
+    |> open_with(init_payload)
     |> bang!()
   end
 
   @doc """
   Closes the connection to the websocket.
   """
-  @spec close(client, timeout) :: :ok
-  def close(client, timeout \\ @default_timeout) do
-    Connection.call(client, :close, timeout)
+  @spec close(client) :: :ok
+  def close(client) do
+    Connection.call(client, :close, @client_timeout)
   end
 
   @doc """
@@ -299,10 +219,14 @@ defmodule GraphQLWSClient do
       ...> )
       {:ok, %{"data" => %{"posts" => %{"body" => "Lorem Ipsum"}}}}
   """
-  @spec query(client, query, variables, timeout) ::
+  @spec query(client, query, variables, nil | timeout) ::
           {:ok, any} | {:error, Exception.t()}
-  def query(client, query, variables \\ %{}, timeout \\ @default_timeout) do
-    Connection.call(client, {:query, query, variables}, timeout)
+  def query(client, query, variables \\ %{}, timeout \\ nil) do
+    Connection.call(
+      client,
+      {:query, query, variables, timeout},
+      @client_timeout
+    )
   end
 
   @doc """
@@ -318,8 +242,8 @@ defmodule GraphQLWSClient do
       ...> )
       %{"data" => %{"posts" => %{"body" => "Lorem Ipsum"}}}
   """
-  @spec query!(client, query, variables, timeout) :: any | no_return
-  def query!(client, query, variables \\ %{}, timeout \\ @default_timeout) do
+  @spec query!(client, query, variables, nil | timeout) :: any | no_return
+  def query!(client, query, variables \\ %{}, timeout \\ nil) do
     case query(client, query, variables, timeout) do
       {:ok, result} -> result
       {:error, error} -> raise error
@@ -343,16 +267,14 @@ defmodule GraphQLWSClient do
       ...> )
       {:ok, #{inspect(UUID.uuid4())}}
   """
-  @spec subscribe(client, query, variables, pid, timeout) ::
+  @spec subscribe(client, query, variables, pid) ::
           {:ok, subscription_id} | {:error, Exception.t()}
-  def subscribe(
-        client,
-        query,
-        variables \\ %{},
-        listener \\ self(),
-        timeout \\ @default_timeout
-      ) do
-    Connection.call(client, {:subscribe, query, variables, listener}, timeout)
+  def subscribe(client, query, variables \\ %{}, listener \\ self()) do
+    Connection.call(
+      client,
+      {:subscribe, query, variables, listener},
+      @client_timeout
+    )
   end
 
   @doc """
@@ -372,17 +294,10 @@ defmodule GraphQLWSClient do
       ...> )
       #{inspect(UUID.uuid4())}
   """
-  @spec subscribe!(client, query, variables, pid, timeout) ::
-          subscription_id | no_return
-  def subscribe!(
-        client,
-        query,
-        variables \\ %{},
-        listener \\ self(),
-        timeout \\ @default_timeout
-      ) do
+  @spec subscribe!(client, query, variables, pid) :: subscription_id | no_return
+  def subscribe!(client, query, variables \\ %{}, listener \\ self()) do
     client
-    |> subscribe(query, variables, listener, timeout)
+    |> subscribe(query, variables, listener)
     |> bang!()
   end
 
@@ -394,10 +309,9 @@ defmodule GraphQLWSClient do
       iex> GraphQLWSClient.unsubscribe(client, #{inspect(UUID.uuid4())})
       :ok
   """
-  @spec unsubscribe(client, subscription_id, timeout) ::
-          :ok | {:error, Exception.t()}
-  def unsubscribe(client, subscription_id, timeout \\ @default_timeout) do
-    Connection.call(client, {:unsubscribe, subscription_id}, timeout)
+  @spec unsubscribe(client, subscription_id) :: :ok | {:error, Exception.t()}
+  def unsubscribe(client, subscription_id) do
+    Connection.call(client, {:unsubscribe, subscription_id}, @client_timeout)
   end
 
   @doc """
@@ -408,10 +322,10 @@ defmodule GraphQLWSClient do
       iex> GraphQLWSClient.unsubscribe!(client, #{inspect(UUID.uuid4())})
       :ok
   """
-  @spec unsubscribe!(client, subscription_id, timeout) :: :ok | no_return
-  def unsubscribe!(client, subscription_id, timeout \\ @default_timeout) do
+  @spec unsubscribe!(client, subscription_id) :: :ok | no_return
+  def unsubscribe!(client, subscription_id) do
     client
-    |> unsubscribe(subscription_id, timeout)
+    |> unsubscribe(subscription_id)
     |> bang!()
   end
 
@@ -503,7 +417,7 @@ defmodule GraphQLWSClient do
 
   @impl true
   def terminate(_reason, %State{} = state) do
-    Logger.debug("[graphql_ws_client] Disconnected")
+    Logger.debug("[graphql_ws_client] Terminated")
     close_connection(state)
   end
 
@@ -528,19 +442,30 @@ defmodule GraphQLWSClient do
     {:reply, {:error, %SocketError{cause: :closed}}, state}
   end
 
-  def handle_call({:query, query, variables}, from, %State{} = state) do
+  def handle_call({:query, query, variables, timeout}, from, %State{} = state) do
     id = push_subscription(state.conn, query, variables)
+
+    timeout_ref =
+      Process.send_after(
+        self(),
+        {:query_timeout, id},
+        timeout || state.config.query_timeout
+      )
 
     Logger.debug(fn ->
       "[graphql_ws_client] Query #{id} - " <>
         "#{inspect(query)} (#{inspect(variables)})"
     end)
 
-    {:noreply, State.add_query(state, id, from)}
+    {:noreply,
+     State.put_query(state, id, %State.Query{
+       from: from,
+       timeout_ref: timeout_ref
+     })}
   end
 
   def handle_call(
-        {:subscribe, query, variables, listener},
+        {:subscribe, query, variables, pid},
         _from,
         %State{} = state
       ) do
@@ -551,7 +476,8 @@ defmodule GraphQLWSClient do
         "#{inspect(query)} (#{inspect(variables)})"
     end)
 
-    {:reply, {:ok, id}, State.add_listener(state, id, listener)}
+    {:reply, {:ok, id},
+     State.put_listener(state, id, %State.Listener{pid: pid})}
   end
 
   def handle_call({:unsubscribe, id}, _from, %State{} = state) do
@@ -575,6 +501,22 @@ defmodule GraphQLWSClient do
     end)
 
     {:noreply, State.remove_listener_by_pid(state, pid)}
+  end
+
+  def handle_info(
+        {:query_timeout, id},
+        %State{connected?: true, conn: conn} = state
+      ) do
+    case Map.fetch(state.queries, id) do
+      {:ok, %State.Query{from: from}} ->
+        Logger.debug("[graphql_ws_client] Query #{id} timed out")
+        Driver.push_message(conn, %Message{id: id, type: :complete})
+        Connection.reply(from, {:error, %SocketError{cause: :timeout}})
+        {:noreply, State.remove_query(state, id)}
+
+      :error ->
+        {:noreply, state}
+    end
   end
 
   def handle_info(msg, %State{connected?: true, conn: conn} = state) do
@@ -627,16 +569,17 @@ defmodule GraphQLWSClient do
     error = %QueryError{errors: payload}
 
     case State.fetch_subscription(state, id) do
-      {:ok, {:query, recipient}} ->
-        Connection.reply(recipient, {:error, error})
+      {:ok, %State.Query{from: from, timeout_ref: timeout_ref}} ->
+        Process.cancel_timer(timeout_ref)
+        Connection.reply(from, {:error, error})
 
-      {:ok, {:listener, listener}} ->
+      {:ok, %State.Listener{pid: pid}} ->
         Logger.debug(fn ->
           "[graphql_ws_client] Message #{id} received (error): " <>
             inspect(error)
         end)
 
-        send(listener, %Event{
+        send(pid, %Event{
           subscription_id: id,
           status: :error,
           result: error
@@ -657,15 +600,16 @@ defmodule GraphQLWSClient do
          %State{} = state
        ) do
     case State.fetch_subscription(state, id) do
-      {:ok, {:query, recipient}} ->
-        Connection.reply(recipient, {:ok, payload})
+      {:ok, %State.Query{from: from, timeout_ref: timeout_ref}} ->
+        Process.cancel_timer(timeout_ref)
+        Connection.reply(from, {:ok, payload})
 
-      {:ok, {:listener, listener}} ->
+      {:ok, %State.Listener{pid: pid}} ->
         Logger.debug(fn ->
           "[graphql_ws_client] Message #{id} received (OK): #{inspect(payload)}"
         end)
 
-        send(listener, %Event{
+        send(pid, %Event{
           subscription_id: id,
           status: :ok,
           result: payload
@@ -703,12 +647,17 @@ defmodule GraphQLWSClient do
   end
 
   defp flush_subscriptions_with_error(error, state) do
-    Enum.each(state.queries, fn {_, from} ->
+    Enum.each(state.queries, fn {_,
+                                 %State.Query{
+                                   from: from,
+                                   timeout_ref: timeout_ref
+                                 }} ->
+      Process.cancel_timer(timeout_ref)
       Connection.reply(from, {:error, error})
     end)
 
-    Enum.each(state.listeners, fn {subscription_id, listener} ->
-      send(listener, %Event{
+    Enum.each(state.listeners, fn {subscription_id, %State.Listener{pid: pid}} ->
+      send(pid, %Event{
         subscription_id: subscription_id,
         status: :error,
         result: error

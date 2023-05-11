@@ -1,3 +1,3 @@
-defmodule TestGraphQLWSClient do
+defmodule GraphQLWSClient.TestClient do
   use GraphQLWSClient, otp_app: :graphql_ws_client
 end

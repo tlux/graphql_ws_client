@@ -196,14 +196,14 @@ defmodule GraphQLWSClientTest do
         {:error, error}
       end)
       |> expect(:connect, fn ^conn ->
-        send(test_pid, :finished)
+        send(test_pid, :reconnected_msg)
         {:ok, conn}
       end)
 
       client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open_with(client, @init_payload) == {:error, error}
-      assert_receive :finished
+      assert_receive :reconnected_msg
     end
 
     test "reconnect with custom payload when disconnected unexpectedly", %{
@@ -221,14 +221,14 @@ defmodule GraphQLWSClientTest do
       |> expect(:parse_message, fn ^conn, :next_msg -> {:error, error} end)
       |> expect(:disconnect, fn ^conn -> :ok end)
       |> expect(:connect, fn ^conn ->
-        send(test_pid, :finished)
+        send(test_pid, :reconnected_msg)
         {:ok, conn}
       end)
 
       client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open_with(client, @init_payload) == :ok
-      assert_receive :finished
+      assert_receive :reconnected_msg
     end
   end
 
@@ -354,6 +354,31 @@ defmodule GraphQLWSClientTest do
                {:error, %SocketError{cause: :closed}}
     end
 
+    test "timeout" do
+      test_pid = self()
+      config = %{@config | query_timeout: 200}
+      conn = %{@conn | config: config}
+
+      MockDriver
+      |> expect(:connect, fn _ -> {:ok, conn} end)
+      |> expect(:push_message, fn _, %Message{id: id} ->
+        send(test_pid, {:query_id, id})
+        :ok
+      end)
+      |> expect(:push_message, fn _, %Message{id: id, type: :complete} ->
+        send(test_pid, {:timed_out_query_id, id})
+        :ok
+      end)
+
+      client = start_supervised!({GraphQLWSClient, config})
+
+      assert GraphQLWSClient.query(client, @query, @variables) ==
+               {:error, %SocketError{cause: :timeout}}
+
+      assert_received {:query_id, query_id}
+      assert_received {:timed_out_query_id, ^query_id}
+    end
+
     test "disconnect on parse error" do
       error = %SocketError{cause: :critical_error}
 
@@ -427,6 +452,31 @@ defmodule GraphQLWSClientTest do
       client = start_supervised!({GraphQLWSClient, @config})
 
       assert {:error, _} = GraphQLWSClient.query(client, @query, @variables)
+    end
+  end
+
+  describe "query/4" do
+    test "timeout" do
+      test_pid = self()
+
+      MockDriver
+      |> expect(:connect, fn _ -> {:ok, @conn} end)
+      |> expect(:push_message, fn _, %Message{id: id} ->
+        send(test_pid, {:query_id, id})
+        :ok
+      end)
+      |> expect(:push_message, fn _, %Message{id: id, type: :complete} ->
+        send(test_pid, {:timed_out_query_id, id})
+        :ok
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert GraphQLWSClient.query(client, @query, @variables, 200) ==
+               {:error, %SocketError{cause: :timeout}}
+
+      assert_received {:query_id, query_id}
+      assert_received {:timed_out_query_id, ^query_id}
     end
   end
 
@@ -539,7 +589,7 @@ defmodule GraphQLWSClientTest do
                )
 
       assert_received {:added_subscription, ^subscription_id}
-      assert get_state(client).listeners[subscription_id] == self()
+      assert get_state(client).listeners[subscription_id].pid == self()
     end
 
     test "not connected" do
@@ -587,7 +637,7 @@ defmodule GraphQLWSClientTest do
         )
 
       assert_received {:added_subscription, ^subscription_id}
-      assert get_state(client).listeners[subscription_id] == self()
+      assert get_state(client).listeners[subscription_id].pid == self()
     end
 
     test "not connected" do
