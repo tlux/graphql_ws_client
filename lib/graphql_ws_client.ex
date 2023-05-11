@@ -544,7 +544,7 @@ defmodule GraphQLWSClient do
     end)
 
     {:noreply,
-     State.add_query(state, id, %State.Query{
+     State.put_query(state, id, %State.Query{
        from: from,
        timeout_ref: timeout_ref
      })}
@@ -563,7 +563,7 @@ defmodule GraphQLWSClient do
     end)
 
     {:reply, {:ok, id},
-     State.add_listener(state, id, %State.Listener{pid: pid})}
+     State.put_listener(state, id, %State.Listener{pid: pid})}
   end
 
   def handle_call({:unsubscribe, id}, _from, %State{} = state) do

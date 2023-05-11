@@ -55,8 +55,8 @@ defmodule GraphQLWSClient.State do
     Map.fetch(listeners, id)
   end
 
-  @spec add_listener(t, term, Listener.t()) :: t
-  def add_listener(%__MODULE__{} = state, id, %Listener{} = listener) do
+  @spec put_listener(t, term, Listener.t()) :: t
+  def put_listener(%__MODULE__{} = state, id, %Listener{} = listener) do
     %{state | listeners: Map.put(state.listeners, id, listener)}
   end
 
@@ -78,8 +78,8 @@ defmodule GraphQLWSClient.State do
     %{state | listeners: listeners}
   end
 
-  @spec add_query(t, term, Query.t()) :: t
-  def add_query(%__MODULE__{} = state, id, %Query{} = query) do
+  @spec put_query(t, term, Query.t()) :: t
+  def put_query(%__MODULE__{} = state, id, %Query{} = query) do
     %{state | queries: Map.put(state.queries, id, query)}
   end
 
