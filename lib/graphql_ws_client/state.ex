@@ -7,6 +7,7 @@ defmodule GraphQLWSClient.State do
           config: Config.t(),
           conn: nil | Conn.t(),
           connected?: boolean,
+          init_payload: any,
           listeners: %{optional(term) => pid},
           monitor_ref: nil | reference,
           queries: %{optional(term) => GenServer.from()}
@@ -15,6 +16,7 @@ defmodule GraphQLWSClient.State do
   defstruct [
     :config,
     :conn,
+    :init_payload,
     :monitor_ref,
     connected?: false,
     listeners: %{},

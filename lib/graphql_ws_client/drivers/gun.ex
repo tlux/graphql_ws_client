@@ -47,7 +47,7 @@ defmodule GraphQLWSClient.Drivers.Gun do
               opts.connect_options
             )},
          {:ws, _, {:ok, stream_ref}} <-
-           {:ws, pid, ws_connect(pid, config, opts)} do
+           {:ws, pid, ws_connect(pid, config, opts, conn.init_payload)} do
       {:ok, %{conn | pid: pid, data: %{stream_ref: stream_ref}}}
     else
       {:start, error} ->
@@ -75,7 +75,7 @@ defmodule GraphQLWSClient.Drivers.Gun do
 
   defp ensure_adapter_ready(_adapter), do: :ok
 
-  defp ws_connect(pid, config, opts) do
+  defp ws_connect(pid, config, opts, init_payload) do
     with {:await_up, {:ok, _protocol}} <-
            {:await_up,
             opts.adapter.await_up(pid, opts.connect_options.connect_timeout)},
@@ -87,7 +87,7 @@ defmodule GraphQLWSClient.Drivers.Gun do
              pid,
              stream_ref,
              opts.json_library,
-             config.init_payload
+             init_payload
            ),
          :ok <- await_connection_ack(opts.json_library, opts.ack_timeout) do
       {:ok, stream_ref}

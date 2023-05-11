@@ -21,8 +21,8 @@ defmodule GraphQLWSClient.Message do
 
   @doc false
   @spec parse(String.t(), module) :: {:ok, t} | :error
-  def parse(value, json_library) do
-    case json_library.decode(value) do
+  def parse(value, decoder) do
+    case decoder.decode(value) do
       {:ok, %{"type" => type} = data} when type in @valid_types ->
         {:ok,
          %__MODULE__{
@@ -38,12 +38,12 @@ defmodule GraphQLWSClient.Message do
 
   @doc false
   @spec serialize(t, module) :: String.t()
-  def serialize(%__MODULE__{} = message, json_library) do
+  def serialize(%__MODULE__{} = message, encoder) do
     message
     |> Map.from_struct()
     |> delete_empty(:id)
     |> delete_empty(:payload)
-    |> json_library.encode!()
+    |> encoder.encode!()
   end
 
   defp delete_empty(map, field) do
