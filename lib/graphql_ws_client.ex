@@ -299,9 +299,9 @@ defmodule GraphQLWSClient do
       ...> )
       {:ok, %{"data" => %{"posts" => %{"body" => "Lorem Ipsum"}}}}
   """
-  @spec query(client, query, variables, timeout) ::
+  @spec query(client, query, variables, nil | timeout) ::
           {:ok, any} | {:error, Exception.t()}
-  def query(client, query, variables \\ %{}, timeout \\ @default_timeout) do
+  def query(client, query, variables \\ %{}, timeout \\ nil) do
     Connection.call(client, {:query, query, variables, timeout}, :infinity)
   end
 
@@ -318,8 +318,8 @@ defmodule GraphQLWSClient do
       ...> )
       %{"data" => %{"posts" => %{"body" => "Lorem Ipsum"}}}
   """
-  @spec query!(client, query, variables, timeout) :: any | no_return
-  def query!(client, query, variables \\ %{}, timeout \\ @default_timeout) do
+  @spec query!(client, query, variables, nil | timeout) :: any | no_return
+  def query!(client, query, variables \\ %{}, timeout \\ nil) do
     case query(client, query, variables, timeout) do
       {:ok, result} -> result
       {:error, error} -> raise error
