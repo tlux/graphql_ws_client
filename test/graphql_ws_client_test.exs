@@ -196,14 +196,14 @@ defmodule GraphQLWSClientTest do
         {:error, error}
       end)
       |> expect(:connect, fn ^conn ->
-        send(test_pid, :finished)
+        send(test_pid, :reconnected_msg)
         {:ok, conn}
       end)
 
       client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open_with(client, @init_payload) == {:error, error}
-      assert_receive :finished
+      assert_receive :reconnected_msg
     end
 
     test "reconnect with custom payload when disconnected unexpectedly", %{
@@ -221,14 +221,14 @@ defmodule GraphQLWSClientTest do
       |> expect(:parse_message, fn ^conn, :next_msg -> {:error, error} end)
       |> expect(:disconnect, fn ^conn -> :ok end)
       |> expect(:connect, fn ^conn ->
-        send(test_pid, :finished)
+        send(test_pid, :reconnected_msg)
         {:ok, conn}
       end)
 
       client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open_with(client, @init_payload) == :ok
-      assert_receive :finished
+      assert_receive :reconnected_msg
     end
   end
 
