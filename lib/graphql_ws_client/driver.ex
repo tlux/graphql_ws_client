@@ -3,7 +3,7 @@ defmodule GraphQLWSClient.Driver do
   A behaviour that defines function to implement custom backends.
   """
 
-  alias GraphQLWSClient.{Config, Conn, Message, SocketError}
+  alias GraphQLWSClient.{Config, Conn, Message}
 
   @doc """
   Optional callback that prepares the `:opts` stored in the `#{inspect(Conn)}`.
@@ -14,7 +14,7 @@ defmodule GraphQLWSClient.Driver do
   @doc """
   Connects to the socket and returns the updated `#{inspect(Conn)}`.
   """
-  @callback connect(Conn.t()) :: {:ok, Conn.t()} | {:error, SocketError.t()}
+  @callback connect(Conn.t()) :: {:ok, Conn.t()} | {:error, Exception.t()}
 
   @doc """
   Disconnects from the socket.
@@ -31,7 +31,7 @@ defmodule GraphQLWSClient.Driver do
   """
   @callback parse_message(Conn.t(), msg :: any) ::
               {:ok, Message.t()}
-              | {:error, SocketError.t()}
+              | {:error, Exception.t()}
               | :ignore
               | :disconnect
 
@@ -39,7 +39,7 @@ defmodule GraphQLWSClient.Driver do
 
   @doc false
   @spec connect(Config.t()) ::
-          {:ok, Conn.t()} | {:error, SocketError.t()}
+          {:ok, Conn.t()} | {:error, Exception.t()}
   def connect(%Config{driver: driver} = config) do
     {driver_mod, driver_opts} =
       case driver do
@@ -78,7 +78,7 @@ defmodule GraphQLWSClient.Driver do
 
   @doc false
   @spec parse_message(Conn.t(), msg :: any) ::
-          {:ok, Message.t()} | {:error, SocketError.t()} | :ignore | :disconnect
+          {:ok, Message.t()} | {:error, Exception.t()} | :ignore | :disconnect
   def parse_message(%Conn{driver: driver} = conn, msg) do
     driver.parse_message(conn, msg)
   end
