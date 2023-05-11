@@ -2,15 +2,16 @@ defmodule GraphQLWSClient.State do
   @moduledoc false
 
   alias GraphQLWSClient.{Config, Conn}
+  alias GraphQLWSClient.State.{Listener, Query}
 
   @type t :: %__MODULE__{
           config: Config.t(),
           conn: nil | Conn.t(),
           connected?: boolean,
           init_payload: any,
-          listeners: %{optional(term) => pid},
+          listeners: %{optional(term) => Listener.t()},
           monitor_ref: nil | reference,
-          queries: %{optional(term) => GenServer.from()}
+          queries: %{optional(term) => Query.t()}
         }
 
   defstruct [
@@ -44,23 +45,18 @@ defmodule GraphQLWSClient.State do
     |> reset_subscriptions()
   end
 
-  @spec fetch_subscription(t, term) ::
-          {:ok, {:query, GenServer.from()}}
-          | {:ok, {:listener, pid}}
-          | :error
+  @spec fetch_subscription(t, term) :: {:ok, Listener.t() | Query.t()} | :error
   def fetch_subscription(%__MODULE__{queries: queries}, id)
       when is_map_key(queries, id) do
-    {:ok, {:query, Map.fetch!(queries, id)}}
+    {:ok, Map.fetch!(queries, id)}
   end
 
   def fetch_subscription(%__MODULE__{listeners: listeners}, id) do
-    with {:ok, pid} <- Map.fetch(listeners, id) do
-      {:ok, {:listener, pid}}
-    end
+    Map.fetch(listeners, id)
   end
 
-  @spec add_listener(t, term, pid) :: t
-  def add_listener(%__MODULE__{} = state, id, listener) do
+  @spec add_listener(t, term, Listener.t()) :: t
+  def add_listener(%__MODULE__{} = state, id, %Listener{} = listener) do
     %{state | listeners: Map.put(state.listeners, id, listener)}
   end
 
@@ -74,7 +70,7 @@ defmodule GraphQLWSClient.State do
     listeners =
       state.listeners
       |> Enum.reject(fn
-        {_, {_, ^pid}} -> true
+        {_, %Listener{pid: ^pid}} -> true
         _ -> false
       end)
       |> Map.new()
@@ -82,9 +78,9 @@ defmodule GraphQLWSClient.State do
     %{state | listeners: listeners}
   end
 
-  @spec add_query(t, term, GenServer.from()) :: t
-  def add_query(%__MODULE__{} = state, id, from) do
-    %{state | queries: Map.put(state.queries, id, from)}
+  @spec add_query(t, term, Query.t()) :: t
+  def add_query(%__MODULE__{} = state, id, %Query{} = query) do
+    %{state | queries: Map.put(state.queries, id, query)}
   end
 
   @spec remove_query(t, term) :: t

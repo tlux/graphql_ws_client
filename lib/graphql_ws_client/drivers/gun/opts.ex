@@ -2,15 +2,15 @@ defmodule GraphQLWSClient.Drivers.Gun.Opts do
   @moduledoc false
 
   @default_connect_options %{
-    connect_timeout: 5000,
+    connect_timeout: :timer.seconds(5),
     protocols: [:http]
   }
 
-  defstruct ack_timeout: 5000,
+  defstruct ack_timeout: :timer.seconds(5),
             adapter: :gun,
             connect_options: @default_connect_options,
             json_library: Jason,
-            upgrade_timeout: 5000
+            upgrade_timeout: :timer.seconds(5)
 
   @type t :: %__MODULE__{
           ack_timeout: timeout,

@@ -57,7 +57,7 @@ defmodule GraphQLWSClient do
     State
   }
 
-  @default_timeout 5000
+  @default_timeout :timer.seconds(5)
 
   @typedoc """
   Type for a client process.
@@ -302,7 +302,7 @@ defmodule GraphQLWSClient do
   @spec query(client, query, variables, timeout) ::
           {:ok, any} | {:error, Exception.t()}
   def query(client, query, variables \\ %{}, timeout \\ @default_timeout) do
-    Connection.call(client, {:query, query, variables}, timeout)
+    Connection.call(client, {:query, query, variables, timeout}, :infinity)
   end
 
   @doc """
@@ -528,19 +528,30 @@ defmodule GraphQLWSClient do
     {:reply, {:error, %SocketError{cause: :closed}}, state}
   end
 
-  def handle_call({:query, query, variables}, from, %State{} = state) do
+  def handle_call({:query, query, variables, timeout}, from, %State{} = state) do
     id = push_subscription(state.conn, query, variables)
+
+    timeout_ref =
+      Process.send_after(
+        self(),
+        {:query_timeout, id},
+        timeout || state.config.query_timeout
+      )
 
     Logger.debug(fn ->
       "[graphql_ws_client] Query #{id} - " <>
         "#{inspect(query)} (#{inspect(variables)})"
     end)
 
-    {:noreply, State.add_query(state, id, from)}
+    {:noreply,
+     State.add_query(state, id, %State.Query{
+       from: from,
+       timeout_ref: timeout_ref
+     })}
   end
 
   def handle_call(
-        {:subscribe, query, variables, listener},
+        {:subscribe, query, variables, pid},
         _from,
         %State{} = state
       ) do
@@ -551,7 +562,8 @@ defmodule GraphQLWSClient do
         "#{inspect(query)} (#{inspect(variables)})"
     end)
 
-    {:reply, {:ok, id}, State.add_listener(state, id, listener)}
+    {:reply, {:ok, id},
+     State.add_listener(state, id, %State.Listener{pid: pid})}
   end
 
   def handle_call({:unsubscribe, id}, _from, %State{} = state) do
@@ -575,6 +587,22 @@ defmodule GraphQLWSClient do
     end)
 
     {:noreply, State.remove_listener_by_pid(state, pid)}
+  end
+
+  def handle_info({:query_timeout, id}, %State{connected?: true} = state) do
+    Logger.debug("[graphql_ws_client] Query timed out")
+
+    queries =
+      case Map.pop(state.queries, id) do
+        {nil, queries} ->
+          queries
+
+        {%State.Query{from: from}, queries} ->
+          Connection.reply(from, {:error, %SocketError{cause: :timeout}})
+          queries
+      end
+
+    {:noreply, %{state | queries: queries}}
   end
 
   def handle_info(msg, %State{connected?: true, conn: conn} = state) do
@@ -627,16 +655,17 @@ defmodule GraphQLWSClient do
     error = %QueryError{errors: payload}
 
     case State.fetch_subscription(state, id) do
-      {:ok, {:query, recipient}} ->
-        Connection.reply(recipient, {:error, error})
+      {:ok, %State.Query{from: from, timeout_ref: timeout_ref}} ->
+        Process.cancel_timer(timeout_ref)
+        Connection.reply(from, {:error, error})
 
-      {:ok, {:listener, listener}} ->
+      {:ok, %State.Listener{pid: pid}} ->
         Logger.debug(fn ->
           "[graphql_ws_client] Message #{id} received (error): " <>
             inspect(error)
         end)
 
-        send(listener, %Event{
+        send(pid, %Event{
           subscription_id: id,
           status: :error,
           result: error
@@ -657,15 +686,16 @@ defmodule GraphQLWSClient do
          %State{} = state
        ) do
     case State.fetch_subscription(state, id) do
-      {:ok, {:query, recipient}} ->
-        Connection.reply(recipient, {:ok, payload})
+      {:ok, %State.Query{from: from, timeout_ref: timeout_ref}} ->
+        Process.cancel_timer(timeout_ref)
+        Connection.reply(from, {:ok, payload})
 
-      {:ok, {:listener, listener}} ->
+      {:ok, %State.Listener{pid: pid}} ->
         Logger.debug(fn ->
           "[graphql_ws_client] Message #{id} received (OK): #{inspect(payload)}"
         end)
 
-        send(listener, %Event{
+        send(pid, %Event{
           subscription_id: id,
           status: :ok,
           result: payload
@@ -703,12 +733,17 @@ defmodule GraphQLWSClient do
   end
 
   defp flush_subscriptions_with_error(error, state) do
-    Enum.each(state.queries, fn {_, from} ->
+    Enum.each(state.queries, fn {_,
+                                 %State.Query{
+                                   from: from,
+                                   timeout_ref: timeout_ref
+                                 }} ->
+      Process.cancel_timer(timeout_ref)
       Connection.reply(from, {:error, error})
     end)
 
-    Enum.each(state.listeners, fn {subscription_id, listener} ->
-      send(listener, %Event{
+    Enum.each(state.listeners, fn {subscription_id, %State.Listener{pid: pid}} ->
+      send(pid, %Event{
         subscription_id: subscription_id,
         status: :error,
         result: error

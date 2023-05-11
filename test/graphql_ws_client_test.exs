@@ -539,7 +539,7 @@ defmodule GraphQLWSClientTest do
                )
 
       assert_received {:added_subscription, ^subscription_id}
-      assert get_state(client).listeners[subscription_id] == self()
+      assert get_state(client).listeners[subscription_id].pid == self()
     end
 
     test "not connected" do
@@ -587,7 +587,7 @@ defmodule GraphQLWSClientTest do
         )
 
       assert_received {:added_subscription, ^subscription_id}
-      assert get_state(client).listeners[subscription_id] == self()
+      assert get_state(client).listeners[subscription_id].pid == self()
     end
 
     test "not connected" do
