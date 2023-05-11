@@ -547,7 +547,7 @@ defmodule GraphQLWSClient do
     id = UUID.uuid4()
 
     Logger.debug(fn ->
-      "[graphql_ws_client] Subscribed #{id} with #{inspect(listener)} " <>
+      "[graphql_ws_client] Subscribed with #{inspect(listener)} as #{id} " <>
         "- #{inspect(query)} (#{inspect(variables)})"
     end)
 
