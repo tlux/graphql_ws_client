@@ -237,13 +237,14 @@ defmodule GraphQLWSClientTest do
 
     test "reply when socket goes down" do
       pid = spawn(fn -> Process.sleep(:infinity) end)
+
       conn = %{@conn | pid: pid}
 
       MockDriver
       |> expect(:connect, fn @conn -> {:ok, conn} end)
       |> expect(:push_message, fn ^conn, _msg ->
         # simulate an unexpected socket shutdown
-        Process.exit(pid, :shutdown)
+        Process.exit(pid, :kill)
         :ok
       end)
 
@@ -251,6 +252,43 @@ defmodule GraphQLWSClientTest do
 
       assert GraphQLWSClient.query(client, @query, @variables) ==
                {:error, %SocketError{cause: :closed}}
+    end
+
+    test "reply on parse disconnect error" do
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:push_message, fn @conn, _msg ->
+        send(self(), :next_msg)
+        :ok
+      end)
+      |> expect(:parse_message, fn @conn, :next_msg ->
+        :disconnect
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert GraphQLWSClient.query(client, @query, @variables) ==
+               {:error, %SocketError{cause: :closed}}
+    end
+
+    test "do not reply on ignored message" do
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:push_message, fn @conn, _msg ->
+        send(self(), :next_msg)
+        :ok
+      end)
+      |> expect(:parse_message, fn @conn, :next_msg ->
+        send(self(), :next_msg)
+        :ignore
+      end)
+      |> expect(:parse_message, fn @conn, :next_msg ->
+        :disconnect
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert {:error, _} = GraphQLWSClient.query(client, @query, @variables)
     end
   end
 
@@ -585,6 +623,24 @@ defmodule GraphQLWSClientTest do
       send(client, :test_message)
 
       refute_receive %Event{}
+    end
+
+    test "notify on parse disconnect error", %{
+      client: client,
+      conn: conn,
+      subscription_id: subscription_id
+    } do
+      expect(MockDriver, :parse_message, fn ^conn, :test_message ->
+        :disconnect
+      end)
+
+      send(client, :test_message)
+
+      assert_receive %Event{
+        status: :error,
+        subscription_id: ^subscription_id,
+        result: %SocketError{cause: :closed}
+      }
     end
 
     test "notify on parse error", %{
