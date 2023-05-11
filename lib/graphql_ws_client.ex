@@ -529,11 +529,11 @@ defmodule GraphQLWSClient do
   end
 
   def handle_call({:query, query, variables}, from, %State{} = state) do
-    id = UUID.uuid4()
-    Driver.push_message(state.conn, build_message(id, query, variables))
+    id = push_subscription(state.conn, query, variables)
 
     Logger.debug(fn ->
-      "[graphql_ws_client] Query - #{inspect(query)} (#{inspect(variables)})"
+      "[graphql_ws_client] Query #{id} - " <>
+        "#{inspect(query)} (#{inspect(variables)})"
     end)
 
     {:noreply, State.add_query(state, id, from)}
@@ -544,12 +544,11 @@ defmodule GraphQLWSClient do
         _from,
         %State{} = state
       ) do
-    id = UUID.uuid4()
-    Driver.push_message(state.conn, build_message(id, query, variables))
+    id = push_subscription(state.conn, query, variables)
 
     Logger.debug(fn ->
-      "[graphql_ws_client] Subscribed with #{inspect(listener)} as #{id} " <>
-        "- #{inspect(query)} (#{inspect(variables)})"
+      "[graphql_ws_client] Subscribe #{id} - " <>
+        "#{inspect(query)} (#{inspect(variables)})"
     end)
 
     {:reply, {:ok, id}, State.add_listener(state, id, listener)}
@@ -557,7 +556,7 @@ defmodule GraphQLWSClient do
 
   def handle_call({:unsubscribe, id}, _from, %State{} = state) do
     Driver.push_message(state.conn, %Message{type: :complete, id: id})
-    Logger.debug("[graphql_ws_client] Unsubscribed #{id}")
+    Logger.debug("[graphql_ws_client] Unsubscribe #{id}")
     {:reply, :ok, State.remove_listener(state, id)}
   end
 
@@ -688,6 +687,21 @@ defmodule GraphQLWSClient do
     {:disconnect, :socket_error, flush_subscriptions_with_error(error, state)}
   end
 
+  defp push_subscription(conn, query, variables) do
+    id = UUID.uuid4()
+
+    Driver.push_message(conn, %Message{
+      type: :subscribe,
+      id: id,
+      payload: %{
+        query: query,
+        variables: Map.new(variables)
+      }
+    })
+
+    id
+  end
+
   defp flush_subscriptions_with_error(error, state) do
     Enum.each(state.queries, fn {_, from} ->
       Connection.reply(from, {:error, error})
@@ -710,17 +724,6 @@ defmodule GraphQLWSClient do
     Process.demonitor(monitor_ref)
     Driver.disconnect(conn)
     State.reset_conn(state)
-  end
-
-  defp build_message(id, query, variables) do
-    %Message{
-      type: :subscribe,
-      id: id,
-      payload: %{
-        query: query,
-        variables: Map.new(variables)
-      }
-    }
   end
 
   defp bang!(:ok), do: :ok
