@@ -529,12 +529,12 @@ defmodule GraphQLWSClient do
   end
 
   def handle_call({:query, query, variables}, from, %State{} = state) do
+    id = UUID.uuid4()
+    Driver.push_message(state.conn, build_message(id, query, variables))
+
     Logger.debug(fn ->
       "[graphql_ws_client] Query - #{inspect(query)} (#{inspect(variables)})"
     end)
-
-    id = UUID.uuid4()
-    Driver.push_message(state.conn, build_message(id, query, variables))
 
     {:noreply, State.add_query(state, id, from)}
   end
@@ -545,13 +545,12 @@ defmodule GraphQLWSClient do
         %State{} = state
       ) do
     id = UUID.uuid4()
+    Driver.push_message(state.conn, build_message(id, query, variables))
 
     Logger.debug(fn ->
       "[graphql_ws_client] Subscribed with #{inspect(listener)} as #{id} " <>
         "- #{inspect(query)} (#{inspect(variables)})"
     end)
-
-    Driver.push_message(state.conn, build_message(id, query, variables))
 
     {:reply, {:ok, id}, State.add_listener(state, id, listener)}
   end
