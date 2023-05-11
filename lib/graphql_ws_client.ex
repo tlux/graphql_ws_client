@@ -5,24 +5,21 @@ defmodule GraphQLWSClient do
 
   ## Example
 
-      iex> client = GraphQLWSClient.start_link(url: "ws://localhost:4000/socket")
-      ...>
-      ...> {:ok, subscription_id} = GraphQLWSClient.subscribe(
-      ...>   client,
-      ...>   "subscription PostCreated { ... }"
-      ...> )
-      ...>
-      ...> {:ok, _} = GraphQLWSClient.query(
-      ...>   client,
-      ...>   "mutation CreatePost { ... }"
-      ...> )
-      ...>
-      ...> receive do
-      ...>   %GraphQLWSClient.Event{} = event ->
-      ...>     IO.inspect(event)
-      ...> end
-      ...>
-      ...> GraphQLClient.close(client)
+      {:ok, socket} = GraphQLWSClient.start_link(url: "ws://localhost:4000/socket")
+
+      {:ok, subscription_id} = GraphQLWSClient.subscribe(
+        socket,
+        "subscription PostCreated { ... }"
+      )
+
+      {:ok, _} = GraphQLWSClient.query(socket, "mutation CreatePost { ... }")
+
+      receive do
+        %GraphQLWSClient.Event{} = event ->
+          IO.inspect(event)
+      end
+
+      GraphQLClient.close(socket)
 
   ## Custom Client
 
