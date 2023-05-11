@@ -11,24 +11,9 @@ defmodule GraphQLWSClient.Drivers.Gun do
       {:gun, "~> 2.0"},
       {:jason, "~> 1.4"},
 
-  ## Customize Options
-
-  To customize the options that are used by the Gun driver, you can set a custom
-  `:driver` option when starting the client.
-
-      GraphQLWSClient.start_link(
-        host: "example.com",
-        driver: {GraphQLWSClient.Drivers.Gun, json_library: Poison},
-      )
-
-  Or you can set it in the configuration for your custom client.
-
-      import Config
-
-      config :my_app, MyGraphQLWSClient,
-        driver: {GraphQLWSClient.Drivers.Gun, json_library: Poison}
-
   ## Available Options
+
+  See `GraphQLWSClient.Driver` to find out how to pass options to the driver.
 
   * `:ack_timeout` - The number of milliseconds to wait for a `connection_ack`
     after initiating the connection. Defaults to `5000`.

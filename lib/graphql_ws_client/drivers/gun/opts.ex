@@ -20,19 +20,17 @@ defmodule GraphQLWSClient.Drivers.Gun.Opts do
           upgrade_timeout: timeout
         }
 
-  @type foo :: :gun.opts()
-
   @spec new(map) :: t
   def new(opts) do
     %{struct!(__MODULE__, opts) | connect_options: merge_connect_options(opts)}
   end
 
   defp merge_connect_options(opts) do
-    Map.merge(
-      @default_connect_options,
+    connect_options =
       opts
       |> Map.get(:connect_options, %{})
       |> Map.new()
-    )
+
+    Map.merge(@default_connect_options, connect_options)
   end
 end

@@ -92,8 +92,7 @@ defmodule GraphQLWSClient.IntegrationTest do
       assert_receive %Event{
         status: :ok,
         subscription_id: ^subscription_id,
-        result: event_result,
-        error: nil
+        result: event_result
       }
 
       assert event_result["data"]["postCreated"]["id"] ==
@@ -113,8 +112,7 @@ defmodule GraphQLWSClient.IntegrationTest do
       assert_receive %Event{
         status: :error,
         subscription_id: ^subscription_id,
-        result: nil,
-        error: %QueryError{errors: errors}
+        result: %QueryError{errors: errors}
       }
 
       assert [%{"message" => message}] = errors
