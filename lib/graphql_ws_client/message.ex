@@ -1,6 +1,6 @@
 defmodule GraphQLWSClient.Message do
   @moduledoc """
-  A message passed received by a driver.
+  A low-level message sent and received by drivers.
   """
 
   @enforce_keys [:type]
