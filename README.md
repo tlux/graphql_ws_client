@@ -7,25 +7,40 @@
 [![License](https://img.shields.io/hexpm/l/graphql_ws_client.svg)](https://github.com/tlux/graphql_ws_client/blob/main/LICENSE.md)
 [![Last Updated](https://img.shields.io/github/last-commit/tlux/graphql_ws_client.svg)](https://github.com/tlux/graphql_ws_client/commits/main)
 
-A client for connecting with GraphQL over Websockets following the
+An extensible client for connecting with GraphQL over Websockets following the
 [graphql-ws](https://github.com/enisdenjo/graphql-ws) conventions.
 
 ## Installation
 
 The package can be installed by adding `graphql_ws_client` to your list of
-dependencies in `mix.exs`. If you are using the default configuration, you will
-also need the `jason` and `gun` packages (or provide a custom
-`GraphQLWSClient.Driver` instead).
+dependencies in `mix.exs`.
 
 ```elixir
 def deps do
   [
-    {:graphql_ws_client, "~> 0.1"},
+    {:graphql_ws_client, "~> 1.0"},
+  ]
+end
+```
+
+If you are using the default configuration, `GraphQLWSClient.Drivers.Gun` is
+used as driver and you will need the `gun` and `jason` packages as well.
+
+```elixir
+def deps do
+  [
+    # ...
     {:gun, "~> 2.0"},
     {:jason, "~> 1.4"},
   ]
 end
 ```
+
+Take a
+look in the driver documentation to find out how to customize driver options.
+
+Alternatively, you can write your own driver based on the
+`GraphQLWSClient.Driver` behaviour.
 
 ## Usage
 

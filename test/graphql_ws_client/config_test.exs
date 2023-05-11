@@ -7,14 +7,11 @@ defmodule GraphQLWSClient.ConfigTest do
     test "minimal config" do
       config = %Config{
         backoff_interval: 3000,
-        connect_timeout: 5000,
         driver: GraphQLWSClient.Drivers.Gun,
         host: "example.com",
         init_payload: nil,
-        init_timeout: 5000,
         path: "/",
-        port: 80,
-        upgrade_timeout: 5000
+        port: 80
       }
 
       assert Config.new(host: "example.com", port: 80) == config
@@ -68,14 +65,11 @@ defmodule GraphQLWSClient.ConfigTest do
     test "full config" do
       opts = [
         backoff_interval: 1000,
-        connect_timeout: 2000,
         driver: {SomeDriver, foo: "bar"},
         host: "example.com",
         init_payload: %{"foo" => "bar"},
-        init_timeout: 3000,
         path: "/subscriptions",
-        port: 8080,
-        upgrade_timeout: 4000
+        port: 8080
       ]
 
       assert Config.new(opts) == struct!(Config, opts)
@@ -89,7 +83,7 @@ defmodule GraphQLWSClient.ConfigTest do
 
     test "error when URL has invalid protocol" do
       assert_raise ArgumentError,
-                   "URL has invalid protocol: ftp (allowed: ws, wss)",
+                   "URL has invalid protocol: ftp (allowed: http, https, ws, wss)",
                    fn ->
                      Config.new(url: "ftp://example.com")
                    end

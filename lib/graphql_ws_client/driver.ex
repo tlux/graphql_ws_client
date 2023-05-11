@@ -1,6 +1,23 @@
 defmodule GraphQLWSClient.Driver do
   @moduledoc """
   A behaviour that defines function to implement custom backends.
+
+  ## Customize Options
+
+  To customize the options that are used by the driver, you can set a custom
+  `:driver` tuple when starting the client.
+
+      GraphQLWSClient.start_link(
+        host: "example.com",
+        driver: {GraphQLWSClient.Drivers.Gun, json_library: Poison},
+      )
+
+  Or you can set it in the configuration for your custom client.
+
+      import Config
+
+      config :my_app, MyGraphQLWSClient,
+        driver: {GraphQLWSClient.Drivers.Gun, json_library: Poison}
   """
 
   alias GraphQLWSClient.{Config, Conn, Message}

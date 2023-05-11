@@ -11,14 +11,17 @@ defmodule GraphQLWSClient.Drivers.GunTest do
   alias GraphQLWSClient.WSClientMock
 
   @config Config.new(
-            connect_timeout: 200,
             init_payload: %{"foo" => "bar"},
-            init_timeout: 200,
-            url: "ws://example.com/subscriptions",
-            upgrade_timeout: 200
+            url: "ws://example.com/subscriptions"
           )
 
-  @opts Gun.init(%{adapter: WSClientMock})
+  @opts Gun.init(%{
+          ack_timeout: 200,
+          adapter: WSClientMock,
+          connect_options: %{connect_timeout: 250},
+          upgrade_timeout: 300
+        })
+
   @conn %Conn{config: @config, driver: Gun, opts: @opts}
 
   setup :set_mox_from_context
@@ -57,7 +60,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       |> expect(:open, fn 'example.com', 80, %{protocols: [:http]} ->
         {:ok, pid}
       end)
-      |> expect(:await_up, fn ^pid, 200 ->
+      |> expect(:await_up, fn ^pid, 250 ->
         {:ok, :http}
       end)
       |> expect(:ws_upgrade, fn ^pid, "/subscriptions" ->
@@ -95,6 +98,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:error, :timeout} end)
+      |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) == {:error, %SocketError{cause: :timeout}}
     end
@@ -103,6 +107,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:error, {:down, nil}} end)
+      |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) == {:error, %SocketError{cause: :closed}}
     end
@@ -112,6 +117,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:ok, :http} end)
       |> expect(:ws_upgrade, fn _, _ -> stream_ref end)
+      |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) == {:error, %SocketError{cause: :timeout}}
     end
@@ -129,6 +135,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
         send(self(), {:gun_response, pid, stream_ref, nil, code, nil})
         stream_ref
       end)
+      |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) ==
                {:error,
@@ -148,6 +155,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
         send(self(), {:gun_error, pid, stream_ref, reason})
         stream_ref
       end)
+      |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) ==
                {:error,
@@ -166,6 +174,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
         stream_ref
       end)
       |> expect(:ws_send, fn _, _, {:text, @init_payload} -> :ok end)
+      |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) == {:error, %SocketError{cause: :timeout}}
     end
@@ -185,6 +194,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
         send(self(), {:gun_ws, pid, stream_ref, {:text, "__invalid__"}})
         :ok
       end)
+      |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) ==
                {:error, %SocketError{cause: :unexpected_result}}
@@ -205,6 +215,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
         send(self(), {:gun_ws, pid, stream_ref, "__invalid__"})
         :ok
       end)
+      |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) ==
                {:error, %SocketError{cause: :unexpected_result}}
@@ -226,6 +237,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
 
         :ok
       end)
+      |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) ==
                {:error,
@@ -247,6 +259,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
         send(self(), {:gun_error, pid, stream_ref, "Something went wrong"})
         :ok
       end)
+      |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) ==
                {:error,

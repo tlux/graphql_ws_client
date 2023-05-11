@@ -6,14 +6,11 @@ defmodule GraphQLWSClient.Config do
   @type t :: %__MODULE__{
           backoff_interval: non_neg_integer,
           connect_on_start: boolean,
-          connect_timeout: timeout,
           driver: module | {module, Keyword.t() | %{optional(atom) => any}},
           host: String.t(),
           init_payload: any,
-          init_timeout: timeout,
           path: String.t(),
-          port: :inet.port_number(),
-          upgrade_timeout: timeout
+          port: :inet.port_number()
         }
 
   @enforce_keys [:host, :port]
@@ -24,11 +21,8 @@ defmodule GraphQLWSClient.Config do
     :port,
     backoff_interval: 3000,
     connect_on_start: true,
-    connect_timeout: 5000,
     driver: GraphQLWSClient.Drivers.Gun,
-    init_timeout: 5000,
-    path: "/",
-    upgrade_timeout: 5000
+    path: "/"
   ]
 
   @protocols %{
@@ -37,8 +31,6 @@ defmodule GraphQLWSClient.Config do
     "ws" => "ws",
     "wss" => "wss"
   }
-
-  @allowed_protocols ~w(ws wss)
 
   @doc """
   Builds a new config.
@@ -52,10 +44,10 @@ defmodule GraphQLWSClient.Config do
     server as soon as the client is started. When set to `false`, you need to
     manually connect by calling `GraphQLWSClient.open/1`. Defaults to `true`.
 
-  * `:connect_timeout` - The connection timeout. Defaults to `5000`.
-
   * `:driver` - The driver module to use. Defaults to
-    `GraphQLWSClient.Drivers.Gun`.
+    `GraphQLWSClient.Drivers.Gun`. Can be either a module or a tuple in the form
+    of `{MyDriverModule, opt_a: "hello world"}`. The options are passed to the
+    driver's `init/1` callback, if defined.
 
   * `:host` - The host to connect to. This is ignored when `:url` is specified
     instead.
@@ -64,17 +56,11 @@ defmodule GraphQLWSClient.Config do
     message. Is useful when you need to authenticate a connection with a token,
     for instance.
 
-  * `:init_timeout` - The number of milliseconds to wait for a `connection_ack`
-    after initiating the connection. Defaults to `5000`.
-
   * `:path` - The path on the server. This is ignored when `:url` is specified
     instead. Defaults to `"/"`.
 
   * `:port` - The port to connect to. This is ignored when `:url` is specified
     instead.
-
-  * `:upgrade_timeout` - The number of milliseconds to wait for a connection
-    upgrade. Defaults to `5000`.
 
   * `:url` - The URL of the websocket to connect to. Overwrites the `:host`,
     `:port` and `:path` options.
@@ -87,26 +73,25 @@ defmodule GraphQLWSClient.Config do
   end
 
   def new(opts) when is_list(opts) do
-    opts =
-      case Keyword.pop(opts, :url) do
-        {nil, opts} ->
-          opts
+    struct!(__MODULE__, expand_opts(opts))
+  end
 
-        {url, opts} ->
-          url_opts =
-            url
-            |> parse_url!()
-            |> Map.take([:host, :port, :path])
-            |> Map.update!(:path, fn
-              nil -> "/"
-              path -> path
-            end)
-            |> Map.to_list()
+  defp expand_opts(opts) do
+    case Keyword.pop(opts, :url) do
+      {nil, opts} -> opts
+      {url, opts} -> Keyword.merge(opts, url_to_opts(url))
+    end
+  end
 
-          Keyword.merge(opts, url_opts)
-      end
-
-    struct!(__MODULE__, opts)
+  defp url_to_opts(url) do
+    url
+    |> parse_url!()
+    |> Map.take([:host, :port, :path])
+    |> Map.update!(:path, fn
+      nil -> "/"
+      path -> path
+    end)
+    |> Map.to_list()
   end
 
   defp parse_url!(url) do
@@ -124,7 +109,7 @@ defmodule GraphQLWSClient.Config do
       Map.get_lazy(@protocols, uri.scheme, fn ->
         raise ArgumentError,
               "URL has invalid protocol: #{uri.scheme} " <>
-                "(allowed: #{Enum.join(@allowed_protocols, ", ")})"
+                "(allowed: #{Enum.join(Map.keys(@protocols), ", ")})"
       end)
 
     %{uri | scheme: scheme}

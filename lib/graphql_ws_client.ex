@@ -1,6 +1,7 @@
 defmodule GraphQLWSClient do
   @moduledoc """
-  A client for connecting to GraphQL websockets that are implemented following
+  An extensible client for connecting to GraphQL websockets that are implemented
+  following
   the [graphql-ws](https://github.com/enisdenjo/graphql-ws) conventions.
 
   ## Example
@@ -477,7 +478,7 @@ defmodule GraphQLWSClient do
 
   def handle_call({:query, query, variables}, from, %State{} = state) do
     Logger.debug(fn ->
-      "[graphql_ws_client] Query - #{query} (#{inspect(variables)})"
+      "[graphql_ws_client] Query - #{inspect(query)} (#{inspect(variables)})"
     end)
 
     id = UUID.uuid4()
@@ -586,9 +587,9 @@ defmodule GraphQLWSClient do
         end)
 
         send(listener, %Event{
-          status: :error,
           subscription_id: id,
-          error: error
+          status: :error,
+          result: error
         })
 
       :error ->
@@ -615,8 +616,8 @@ defmodule GraphQLWSClient do
         end)
 
         send(listener, %Event{
-          status: :ok,
           subscription_id: id,
+          status: :ok,
           result: payload
         })
 
@@ -641,8 +642,12 @@ defmodule GraphQLWSClient do
       Connection.reply(from, {:error, error})
     end)
 
-    Enum.each(state.listeners, fn {id, listener} ->
-      send(listener, %Event{status: :error, subscription_id: id, error: error})
+    Enum.each(state.listeners, fn {subscription_id, listener} ->
+      send(listener, %Event{
+        subscription_id: subscription_id,
+        status: :error,
+        result: error
+      })
     end)
 
     State.reset_subscriptions(state)

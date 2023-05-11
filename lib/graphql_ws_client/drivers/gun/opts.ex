@@ -1,12 +1,36 @@
 defmodule GraphQLWSClient.Drivers.Gun.Opts do
   @moduledoc false
 
-  defstruct adapter: :gun, json_library: Jason
+  @default_connect_options %{
+    connect_timeout: 5000,
+    protocols: [:http]
+  }
 
-  @type t :: %__MODULE__{adapter: module, json_library: module}
+  defstruct ack_timeout: 5000,
+            adapter: :gun,
+            connect_options: @default_connect_options,
+            json_library: Jason,
+            upgrade_timeout: 5000
+
+  @type t :: %__MODULE__{
+          ack_timeout: timeout,
+          adapter: module,
+          connect_options: %{optional(atom) => any},
+          json_library: module,
+          upgrade_timeout: timeout
+        }
 
   @spec new(map) :: t
   def new(opts) do
-    struct!(__MODULE__, opts)
+    %{struct!(__MODULE__, opts) | connect_options: merge_connect_options(opts)}
+  end
+
+  defp merge_connect_options(opts) do
+    connect_options =
+      opts
+      |> Map.get(:connect_options, %{})
+      |> Map.new()
+
+    Map.merge(@default_connect_options, connect_options)
   end
 end

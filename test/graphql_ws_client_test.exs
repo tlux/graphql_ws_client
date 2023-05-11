@@ -9,18 +9,21 @@ defmodule GraphQLWSClientTest do
 
   @opts [
     backoff_interval: 1000,
-    connect_timeout: 500,
-    driver: MockDriver,
+    driver: {MockDriver, upgrade_timeout: 1500},
     host: "example.com",
     init_payload: %{"token" => "__token__"},
-    init_timeout: 2000,
     path: "/subscriptions",
-    port: 1234,
-    upgrade_timeout: 1500
+    port: 1234
   ]
 
   @config struct!(Config, @opts)
-  @conn %Conn{config: @config, driver: MockDriver}
+
+  @conn %Conn{
+    config: @config,
+    driver: MockDriver,
+    opts: %{upgrade_timeout: 1500}
+  }
+
   @query "query Foo { foo { bar } }"
   @subscription_id "__subscription_id__"
   @variables %{"foo" => "bar"}
@@ -539,8 +542,7 @@ defmodule GraphQLWSClientTest do
       assert_receive %Event{
         status: :ok,
         subscription_id: ^subscription_id,
-        result: ^result,
-        error: nil
+        result: ^result
       }
     end
 
@@ -560,8 +562,7 @@ defmodule GraphQLWSClientTest do
       assert_receive %Event{
         status: :error,
         subscription_id: ^subscription_id,
-        result: nil,
-        error: %QueryError{errors: ^errors}
+        result: %QueryError{errors: ^errors}
       }
     end
 
@@ -606,8 +607,7 @@ defmodule GraphQLWSClientTest do
       assert_receive %Event{
         status: :error,
         subscription_id: ^subscription_id,
-        result: nil,
-        error: ^error
+        result: ^error
       }
 
       # ensure listeners removed on disconnect
@@ -623,8 +623,7 @@ defmodule GraphQLWSClientTest do
       assert_receive %Event{
         status: :error,
         subscription_id: ^subscription_id,
-        result: nil,
-        error: %SocketError{cause: :closed}
+        result: %SocketError{cause: :closed}
       }
     end
   end
