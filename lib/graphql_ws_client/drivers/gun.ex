@@ -11,15 +11,14 @@ defmodule GraphQLWSClient.Drivers.Gun do
       {:gun, "~> 2.0"},
       {:jason, "~> 1.4"},
 
-  ## Custom JSON Library
+  ## Customize Options
 
-  To customize the JSON library that is used by the Gun driver, you can set a
-  custom `:driver` option when starting the client.
+  To customize the options that are used by the Gun driver, you can set a custom
+  `:driver` option when starting the client.
 
       GraphQLWSClient.start_link(
         host: "example.com",
         driver: {GraphQLWSClient.Drivers.Gun, json_library: Poison},
-        # more options here...
       )
 
   Or you can set it in the configuration for your custom client.
@@ -28,6 +27,20 @@ defmodule GraphQLWSClient.Drivers.Gun do
 
       config :my_app, MyGraphQLWSClient,
         driver: {GraphQLWSClient.Drivers.Gun, json_library: Poison}
+
+  ## Available Options
+
+  * `:ack_timeout` - The number of milliseconds to wait for a `connection_ack`
+    after initiating the connection. Defaults to `5000`.
+
+  * `:connect_options` - Connection options forwarded to `:gun.open/3`. See
+    `t::gun.opts/0` for all available options.
+
+  * `:json_library` - The library used to encode and decode JSON payloads.
+    `Jason` by default.
+
+  * `:upgrade_timeout` - The number of milliseconds to wait for a connection
+    upgrade. Defaults to `5000`.
   """
 
   @behaviour GraphQLWSClient.Driver
@@ -39,49 +52,27 @@ defmodule GraphQLWSClient.Drivers.Gun do
   def init(opts), do: Opts.new(opts)
 
   @impl true
-  def connect(
-        %Conn{
-          config: config,
-          opts: %Opts{adapter: adapter, json_library: json_library}
-        } = conn
-      ) do
-    with :ok <- ensure_adapter_ready(adapter),
+  def connect(%Conn{config: config, opts: opts} = conn) do
+    with {:start, :ok} <- {:start, ensure_adapter_ready(opts.adapter)},
          {:open, {:ok, pid}} <-
            {:open,
-            adapter.open(
+            opts.adapter.open(
               String.to_charlist(config.host),
               config.port,
-              %{protocols: [:http]}
+              opts.connect_options
             )},
-         {:await_up, {:ok, _protocol}} <-
-           {:await_up, adapter.await_up(pid, config.connect_timeout)},
-         stream_ref = adapter.ws_upgrade(pid, config.path),
-         :ok <- await_upgrade(config.upgrade_timeout),
-         :ok <-
-           init_connection(
-             adapter,
-             pid,
-             stream_ref,
-             json_library,
-             config.init_payload
-           ),
-         :ok <- await_connection_ack(json_library, config.init_timeout) do
+         {:ws, _, {:ok, stream_ref}} <-
+           {:ws, pid, ws_connect(pid, config, opts)} do
       {:ok, %{conn | pid: pid, data: %{stream_ref: stream_ref}}}
     else
+      {:start, error} ->
+        error
+
       {:open, {:error, reason}} ->
         {:error, %SocketError{cause: :connect, details: %{reason: reason}}}
 
-      {:await_up, {:error, :timeout}} ->
-        {:error, %SocketError{cause: :timeout}}
-
-      {:await_up, {:error, {:down, _}}} ->
-        {:error, %SocketError{cause: :closed}}
-
-      {:start, {:error, {_app, reason}}} ->
-        {:error,
-         %SocketError{cause: :critical_error, details: %{reason: reason}}}
-
-      error ->
+      {:ws, pid, error} ->
+        opts.adapter.close(pid)
         error
     end
   end
@@ -98,6 +89,34 @@ defmodule GraphQLWSClient.Drivers.Gun do
   end
 
   defp ensure_adapter_ready(_adapter), do: :ok
+
+  defp ws_connect(pid, config, opts) do
+    with {:await_up, {:ok, _protocol}} <-
+           {:await_up,
+            opts.adapter.await_up(pid, opts.connect_options.connect_timeout)},
+         stream_ref = opts.adapter.ws_upgrade(pid, config.path),
+         :ok <- await_upgrade(opts.upgrade_timeout),
+         :ok <-
+           init_connection(
+             opts.adapter,
+             pid,
+             stream_ref,
+             opts.json_library,
+             config.init_payload
+           ),
+         :ok <- await_connection_ack(opts.json_library, opts.ack_timeout) do
+      {:ok, stream_ref}
+    else
+      {:await_up, {:error, :timeout}} ->
+        {:error, %SocketError{cause: :timeout}}
+
+      {:await_up, {:error, {:down, _}}} ->
+        {:error, %SocketError{cause: :closed}}
+
+      error ->
+        error
+    end
+  end
 
   @impl true
   def disconnect(%Conn{pid: pid, opts: %Opts{adapter: adapter}}) do

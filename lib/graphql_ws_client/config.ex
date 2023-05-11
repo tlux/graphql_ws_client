@@ -52,8 +52,6 @@ defmodule GraphQLWSClient.Config do
     server as soon as the client is started. When set to `false`, you need to
     manually connect by calling `GraphQLWSClient.open/1`. Defaults to `true`.
 
-  * `:connect_timeout` - The connection timeout. Defaults to `5000`.
-
   * `:driver` - The driver module to use. Defaults to
     `GraphQLWSClient.Drivers.Gun`.
 
@@ -64,17 +62,11 @@ defmodule GraphQLWSClient.Config do
     message. Is useful when you need to authenticate a connection with a token,
     for instance.
 
-  * `:init_timeout` - The number of milliseconds to wait for a `connection_ack`
-    after initiating the connection. Defaults to `5000`.
-
   * `:path` - The path on the server. This is ignored when `:url` is specified
     instead. Defaults to `"/"`.
 
   * `:port` - The port to connect to. This is ignored when `:url` is specified
     instead.
-
-  * `:upgrade_timeout` - The number of milliseconds to wait for a connection
-    upgrade. Defaults to `5000`.
 
   * `:url` - The URL of the websocket to connect to. Overwrites the `:host`,
     `:port` and `:path` options.
