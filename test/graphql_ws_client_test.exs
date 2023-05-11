@@ -355,17 +355,28 @@ defmodule GraphQLWSClientTest do
     end
 
     test "timeout" do
+      test_pid = self()
       config = %{@config | query_timeout: 200}
       conn = %{@conn | config: config}
 
       MockDriver
       |> expect(:connect, fn _ -> {:ok, conn} end)
-      |> expect(:push_message, fn _, _ -> :ok end)
+      |> expect(:push_message, fn _, %Message{id: id} ->
+        send(test_pid, {:query_id, id})
+        :ok
+      end)
+      |> expect(:push_message, fn _, %Message{id: id, type: :complete} ->
+        send(test_pid, {:timed_out_query_id, id})
+        :ok
+      end)
 
       client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.query(client, @query, @variables) ==
                {:error, %SocketError{cause: :timeout}}
+
+      assert_received {:query_id, query_id}
+      assert_received {:timed_out_query_id, ^query_id}
     end
 
     test "disconnect on parse error" do
@@ -446,14 +457,26 @@ defmodule GraphQLWSClientTest do
 
   describe "query/4" do
     test "timeout" do
+      test_pid = self()
+
       MockDriver
       |> expect(:connect, fn _ -> {:ok, @conn} end)
-      |> expect(:push_message, fn _, _ -> :ok end)
+      |> expect(:push_message, fn _, %Message{id: id} ->
+        send(test_pid, {:query_id, id})
+        :ok
+      end)
+      |> expect(:push_message, fn _, %Message{id: id, type: :complete} ->
+        send(test_pid, {:timed_out_query_id, id})
+        :ok
+      end)
 
       client = start_supervised!({GraphQLWSClient, @config})
 
       assert GraphQLWSClient.query(client, @query, @variables, 200) ==
                {:error, %SocketError{cause: :timeout}}
+
+      assert_received {:query_id, query_id}
+      assert_received {:timed_out_query_id, ^query_id}
     end
   end
 

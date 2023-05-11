@@ -503,10 +503,14 @@ defmodule GraphQLWSClient do
     {:noreply, State.remove_listener_by_pid(state, pid)}
   end
 
-  def handle_info({:query_timeout, id}, %State{connected?: true} = state) do
+  def handle_info(
+        {:query_timeout, id},
+        %State{connected?: true, conn: conn} = state
+      ) do
     case Map.fetch(state.queries, id) do
       {:ok, %State.Query{from: from}} ->
         Logger.debug("[graphql_ws_client] Query #{id} timed out")
+        Driver.push_message(conn, %Message{id: id, type: :complete})
         Connection.reply(from, {:error, %SocketError{cause: :timeout}})
         {:noreply, State.remove_query(state, id)}
 
