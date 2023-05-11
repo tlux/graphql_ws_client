@@ -417,7 +417,7 @@ defmodule GraphQLWSClient do
 
   @impl true
   def terminate(_reason, %State{} = state) do
-    Logger.debug("[graphql_ws_client] Disconnected")
+    Logger.debug("[graphql_ws_client] Terminated")
     close_connection(state)
   end
 
