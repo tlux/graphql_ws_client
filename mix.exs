@@ -26,7 +26,7 @@ defmodule GraphQLWSClient.MixProject do
       dialyzer: dialyzer(),
 
       # Docs
-      name: "GraphQL-over-Websocket Client",
+      name: "GraphQL Websocket Client",
       docs: docs()
     ]
   end

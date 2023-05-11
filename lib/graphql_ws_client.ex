@@ -194,7 +194,7 @@ defmodule GraphQLWSClient do
   end
 
   @doc """
-  Starts a GraphQL-over-Websocket client.
+  Starts a GraphQL Websocket client.
 
   ## Options
 
@@ -218,7 +218,7 @@ defmodule GraphQLWSClient do
   end
 
   @doc """
-  Starts a GraphQL-over-Websocket client using the given config and `GenServer`
+  Starts a GraphQL Websocket client using the given config and `GenServer`
   options.
 
   ## Options
@@ -262,6 +262,7 @@ defmodule GraphQLWSClient do
   @doc """
   Opens the connection to the websocket using a custom payload.
   """
+  @doc since: "1.0.0"
   @spec open_with(client, any, timeout) :: :ok | {:error, Exception.t()}
   def open_with(client, init_payload, timeout \\ @default_timeout) do
     Connection.call(client, {:open_with, init_payload}, timeout)
@@ -270,6 +271,7 @@ defmodule GraphQLWSClient do
   @doc """
   Opens the connection to the websocket using a custom payload. Raises on error.
   """
+  @doc since: "1.0.0"
   @spec open_with!(client, any, timeout) :: :ok | no_return
   def open_with!(client, init_payload, timeout \\ @default_timeout) do
     client
