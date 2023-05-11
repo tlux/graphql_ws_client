@@ -21,7 +21,8 @@ defmodule GraphQLWSClientTest do
   @conn %Conn{
     config: @config,
     driver: MockDriver,
-    opts: %{upgrade_timeout: 1500}
+    opts: %{upgrade_timeout: 1500},
+    init_payload: %{"token" => "__token__"}
   }
 
   @query "query Foo { foo { bar } }"
@@ -126,6 +127,143 @@ defmodule GraphQLWSClientTest do
 
       assert_raise SocketError, Exception.message(error), fn ->
         GraphQLWSClient.open!(client)
+      end
+    end
+  end
+
+  describe "open_with/1" do
+    @init_payload %{"foo" => "bar"}
+
+    setup do
+      config = %{@config | connect_on_start: false}
+      conn = %{@conn | config: config, init_payload: @init_payload}
+      {:ok, config: config, conn: conn}
+    end
+
+    test "success", %{config: config, conn: conn} do
+      expect(MockDriver, :connect, fn ^conn ->
+        {:ok, conn}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, config})
+
+      assert GraphQLWSClient.connected?(client) == false
+      assert GraphQLWSClient.open_with(client, @init_payload) == :ok
+      assert GraphQLWSClient.connected?(client) == true
+    end
+
+    test "error", %{config: config, conn: conn} do
+      error = %SocketError{cause: :timeout}
+
+      expect(MockDriver, :connect, fn ^conn ->
+        {:error, error}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, config})
+
+      assert GraphQLWSClient.open_with(client, @init_payload) == {:error, error}
+    end
+
+    test "reconnect with original payload when connection closed", %{
+      config: config,
+      conn: conn
+    } do
+      reconnect_conn = %{@conn | config: config}
+
+      MockDriver
+      |> expect(:connect, fn ^conn -> {:ok, conn} end)
+      |> expect(:disconnect, fn ^conn -> :ok end)
+      |> expect(:connect, fn ^reconnect_conn -> {:ok, reconnect_conn} end)
+
+      client = start_supervised!({GraphQLWSClient, config})
+
+      assert GraphQLWSClient.open_with(client, @init_payload) == :ok
+      assert GraphQLWSClient.close(client) == :ok
+      assert GraphQLWSClient.open(client) == :ok
+    end
+
+    test "reconnect with custom payload when connection failed", %{
+      config: config,
+      conn: conn
+    } do
+      test_pid = self()
+      config = %{config | backoff_interval: 50}
+      conn = %{conn | config: config}
+      error = %SocketError{cause: :connection}
+
+      MockDriver
+      |> expect(:connect, fn ^conn ->
+        {:error, error}
+      end)
+      |> expect(:connect, fn ^conn ->
+        send(test_pid, :finished)
+        {:ok, conn}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, config})
+
+      assert GraphQLWSClient.open_with(client, @init_payload) == {:error, error}
+      assert_receive :finished
+    end
+
+    test "reconnect with custom payload when disconnected unexpectedly", %{
+      config: config,
+      conn: conn
+    } do
+      test_pid = self()
+      error = %SocketError{cause: :closed}
+
+      MockDriver
+      |> expect(:connect, fn ^conn ->
+        send(self(), :next_msg)
+        {:ok, conn}
+      end)
+      |> expect(:parse_message, fn ^conn, :next_msg -> {:error, error} end)
+      |> expect(:disconnect, fn ^conn -> :ok end)
+      |> expect(:connect, fn ^conn ->
+        send(test_pid, :finished)
+        {:ok, conn}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, config})
+
+      assert GraphQLWSClient.open_with(client, @init_payload) == :ok
+      assert_receive :finished
+    end
+  end
+
+  describe "open_with!/1" do
+    @init_payload %{"foo" => "bar"}
+
+    setup do
+      config = %{@config | connect_on_start: false}
+      conn = %{@conn | config: config, init_payload: @init_payload}
+      {:ok, config: config, conn: conn}
+    end
+
+    test "success", %{config: config, conn: conn} do
+      expect(MockDriver, :connect, fn ^conn ->
+        {:ok, conn}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, config})
+
+      assert GraphQLWSClient.connected?(client) == false
+      assert GraphQLWSClient.open_with!(client, @init_payload) == :ok
+      assert GraphQLWSClient.connected?(client) == true
+    end
+
+    test "error", %{config: config, conn: conn} do
+      error = %SocketError{cause: :timeout}
+
+      expect(MockDriver, :connect, fn ^conn ->
+        {:error, error}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, config})
+
+      assert_raise SocketError, Exception.message(error), fn ->
+        GraphQLWSClient.open_with!(client, @init_payload)
       end
     end
   end

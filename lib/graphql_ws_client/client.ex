@@ -14,9 +14,20 @@ defmodule GraphQLWSClient.Client do
   @callback open(timeout) :: :ok | {:error, Exception.t()}
 
   @doc """
-  Connects to the server. Raises on error
+  Connects to the server. Raises on error.
   """
   @callback open!(timeout) :: :ok | no_return
+
+  @doc """
+  Connects to the server using a custom initial payload.
+  """
+  @callback open_with(init_payload :: any, timeout) ::
+              :ok | {:error, Exception.t()}
+
+  @doc """
+  Connects to the server using a custom initial payload. Raises on error.
+  """
+  @callback open_with!(init_payload :: any, timeout) :: :ok | no_return
 
   @doc """
   Closes the connection to the server.

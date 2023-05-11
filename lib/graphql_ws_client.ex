@@ -101,7 +101,9 @@ defmodule GraphQLWSClient do
         )
       end
 
-      @doc false
+      @doc """
+      The default child specification.
+      """
       @spec child_spec(term) :: Supervisor.child_spec()
       def child_spec(opts) do
         %{
@@ -118,6 +120,16 @@ defmodule GraphQLWSClient do
       @impl Client
       def open!(timeout \\ unquote(@default_timeout)) do
         unquote(__MODULE__).open!(__MODULE__, timeout)
+      end
+
+      @impl Client
+      def open_with(init_payload, timeout \\ unquote(@default_timeout)) do
+        unquote(__MODULE__).open_with(__MODULE__, init_payload, timeout)
+      end
+
+      @impl Client
+      def open_with!(init_payload, timeout \\ unquote(@default_timeout)) do
+        unquote(__MODULE__).open_with!(__MODULE__, init_payload, timeout)
       end
 
       @impl Client
@@ -182,7 +194,7 @@ defmodule GraphQLWSClient do
   end
 
   @doc """
-  Starts a graphql-ws client.
+  Starts a GraphQL-over-Websocket client.
 
   ## Options
 
@@ -206,13 +218,14 @@ defmodule GraphQLWSClient do
   end
 
   @doc """
-  Starts a graphql-ws client using the given config and `GenServer` options.
+  Starts a GraphQL-over-Websocket client using the given config and `GenServer`
+  options.
 
   ## Options
 
   The first argument accept options as specified in
-  `GraphQLWSClient.Config.new/1`.
-  The second argument accepts `t:GenServer.options/0`.
+  `GraphQLWSClient.Config.new/1`. The second argument accepts
+  `t:GenServer.options/0`.
   """
   @spec start_link(Config.t() | Keyword.t() | map, GenServer.options()) ::
           GenServer.on_start()
@@ -243,6 +256,24 @@ defmodule GraphQLWSClient do
   def open!(client, timeout \\ @default_timeout) do
     client
     |> open(timeout)
+    |> bang!()
+  end
+
+  @doc """
+  Opens the connection to the websocket using a custom payload.
+  """
+  @spec open_with(client, any, timeout) :: :ok | {:error, Exception.t()}
+  def open_with(client, init_payload, timeout \\ @default_timeout) do
+    Connection.call(client, {:open_with, init_payload}, timeout)
+  end
+
+  @doc """
+  Opens the connection to the websocket using a custom payload. Raises on error.
+  """
+  @spec open_with!(client, any, timeout) :: :ok | no_return
+  def open_with!(client, init_payload, timeout \\ @default_timeout) do
+    client
+    |> open_with(init_payload, timeout)
     |> bang!()
   end
 
@@ -382,7 +413,10 @@ defmodule GraphQLWSClient do
     |> bang!()
   end
 
-  @doc false
+  @doc """
+  The default child specification that can be used to run the client under a
+  supervisor.
+  """
   @spec child_spec(term) :: Supervisor.child_spec()
   def child_spec(opts) do
     %{
@@ -396,7 +430,11 @@ defmodule GraphQLWSClient do
   @impl true
   def init(%Config{} = config) do
     Process.flag(:trap_exit, true)
-    state = %State{config: config}
+
+    state = %State{
+      config: config,
+      init_payload: config.init_payload
+    }
 
     if config.connect_on_start do
       {:connect, :init, state}
@@ -412,9 +450,17 @@ defmodule GraphQLWSClient do
         "at #{config.path}"
     end)
 
-    case Driver.connect(config) do
+    init_payload =
+      case info do
+        {:open, _, {:payload, init_payload}} -> init_payload
+        _ -> state.init_payload
+      end
+
+    state = %{state | init_payload: init_payload}
+
+    case Driver.connect(config, init_payload) do
       {:ok, %Conn{} = conn} ->
-        with {:open, from} <- info do
+        with {:open, from, _} <- info do
           Connection.reply(from, :ok)
         end
 
@@ -424,7 +470,7 @@ defmodule GraphQLWSClient do
 
       {:error, error} ->
         case info do
-          {:open, from} ->
+          {:open, from, _} ->
             Connection.reply(from, {:error, error})
 
           _ ->
@@ -439,15 +485,15 @@ defmodule GraphQLWSClient do
   def disconnect({:close, from}, %State{} = state) do
     state = close_connection(state)
     Connection.reply(from, :ok)
-    Logger.debug("[graphql_ws_client] Disconnected")
-    {:noconnect, state}
+    Logger.debug("[graphql_ws_client] Closed")
+    {:noconnect, %{state | init_payload: state.config.init_payload}}
   end
 
   def disconnect(info, %State{} = state) do
     state = close_connection(state)
 
     Logger.error(fn ->
-      "[graphql_ws_client] Disconnected unexpectedly: #{inspect(info)}"
+      "[graphql_ws_client] Disconnected: #{inspect(info)}"
     end)
 
     {:connect, :reconnect, state}
@@ -461,7 +507,11 @@ defmodule GraphQLWSClient do
 
   @impl true
   def handle_call(:open, from, %State{} = state) do
-    {:connect, {:open, from}, state}
+    {:connect, {:open, from, nil}, state}
+  end
+
+  def handle_call({:open_with, init_payload}, from, %State{} = state) do
+    {:connect, {:open, from, {:payload, init_payload}}, state}
   end
 
   def handle_call(:close, from, %State{} = state) do

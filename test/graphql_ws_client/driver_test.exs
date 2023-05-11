@@ -11,51 +11,75 @@ defmodule GraphQLWSClient.DriverTest do
 
   setup :verify_on_exit!
 
+  @init_payload %{"foo" => "bar"}
   @config %Config{host: "example.com", port: 80}
-  @conn %Conn{config: @config, driver: Mock}
+  @conn %Conn{config: @config, driver: Mock, init_payload: @init_payload}
 
-  describe "connect/1" do
+  describe "connect/2" do
     @opts %{foo: "bar"}
 
     test "without driver options, with init function" do
       config = %{@config | driver: Mock}
-      conn = %Conn{config: config, driver: Mock, opts: @opts}
+
+      conn = %Conn{
+        config: config,
+        driver: Mock,
+        init_payload: @init_payload,
+        opts: @opts
+      }
 
       Mock
       |> expect(:init, fn opts when map_size(opts) == 0 -> @opts end)
       |> expect(:connect, fn ^conn -> {:ok, conn} end)
 
-      assert Driver.connect(config) == {:ok, conn}
+      assert Driver.connect(config, @init_payload) == {:ok, conn}
     end
 
     test "without driver options, without init function" do
       config = %{@config | driver: MockWithoutInit}
-      conn = %Conn{config: config, driver: MockWithoutInit}
+
+      conn = %Conn{
+        config: config,
+        driver: MockWithoutInit,
+        init_payload: @init_payload
+      }
 
       expect(MockWithoutInit, :connect, fn ^conn -> {:ok, conn} end)
 
-      assert Driver.connect(config) == {:ok, conn}
+      assert Driver.connect(config, @init_payload) == {:ok, conn}
     end
 
     test "with driver options, with init function" do
       config = %{@config | driver: {Mock, @opts}}
       updated_opts = Map.put(@opts, :baz, 1234)
-      conn = %Conn{config: config, driver: Mock, opts: updated_opts}
+
+      conn = %Conn{
+        config: config,
+        driver: Mock,
+        init_payload: @init_payload,
+        opts: updated_opts
+      }
 
       Mock
       |> expect(:init, fn @opts -> updated_opts end)
       |> expect(:connect, fn ^conn -> {:ok, conn} end)
 
-      assert Driver.connect(config) == {:ok, conn}
+      assert Driver.connect(config, @init_payload) == {:ok, conn}
     end
 
     test "with driver options, without init function" do
       config = %{@config | driver: {MockWithoutInit, @opts}}
-      conn = %Conn{config: config, driver: MockWithoutInit, opts: @opts}
+
+      conn = %Conn{
+        config: config,
+        driver: MockWithoutInit,
+        init_payload: @init_payload,
+        opts: @opts
+      }
 
       expect(MockWithoutInit, :connect, fn ^conn -> {:ok, conn} end)
 
-      assert Driver.connect(config) == {:ok, conn}
+      assert Driver.connect(config, @init_payload) == {:ok, conn}
     end
   end
 

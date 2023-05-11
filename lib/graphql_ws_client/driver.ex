@@ -55,9 +55,9 @@ defmodule GraphQLWSClient.Driver do
   @optional_callbacks [init: 1]
 
   @doc false
-  @spec connect(Config.t()) ::
+  @spec connect(Config.t(), init_payload :: any) ::
           {:ok, Conn.t()} | {:error, Exception.t()}
-  def connect(%Config{driver: driver} = config) do
+  def connect(%Config{driver: driver} = config, init_payload) do
     {driver_mod, driver_opts} =
       case driver do
         {mod, opts} -> {mod, opts}
@@ -67,6 +67,7 @@ defmodule GraphQLWSClient.Driver do
     driver_mod.connect(%Conn{
       config: config,
       driver: driver_mod,
+      init_payload: init_payload,
       opts: init_driver(driver_mod, driver_opts)
     })
   end

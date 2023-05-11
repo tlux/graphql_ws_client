@@ -10,10 +10,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
   alias GraphQLWSClient.SocketError
   alias GraphQLWSClient.WSClientMock
 
-  @config Config.new(
-            init_payload: %{"foo" => "bar"},
-            url: "ws://example.com/subscriptions"
-          )
+  @config Config.new(url: "ws://example.com/subscriptions")
 
   @opts Gun.init(%{
           ack_timeout: 200,
@@ -22,7 +19,12 @@ defmodule GraphQLWSClient.Drivers.GunTest do
           upgrade_timeout: 300
         })
 
-  @conn %Conn{config: @config, driver: Gun, opts: @opts}
+  @conn %Conn{
+    config: @config,
+    driver: Gun,
+    init_payload: %{"foo" => "bar"},
+    opts: @opts
+  }
 
   setup :set_mox_from_context
   setup :verify_on_exit!
@@ -50,7 +52,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
   describe "connect/1" do
     @init_payload Jason.encode!(%{
                     "type" => "connection_init",
-                    "payload" => @config.init_payload
+                    "payload" => @conn.init_payload
                   })
 
     @ack_payload Jason.encode!(%{"type" => "connection_ack"})
