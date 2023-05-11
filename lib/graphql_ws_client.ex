@@ -585,7 +585,11 @@ defmodule GraphQLWSClient do
             inspect(error)
         end)
 
-        send(listener, %Event{subscription_id: id, error: error})
+        send(listener, %Event{
+          status: :error,
+          subscription_id: id,
+          error: error
+        })
 
       :error ->
         Logger.debug(fn ->
@@ -610,7 +614,11 @@ defmodule GraphQLWSClient do
           "[graphql_ws_client] Message #{id} received (OK): #{inspect(payload)}"
         end)
 
-        send(listener, %Event{subscription_id: id, result: payload})
+        send(listener, %Event{
+          status: :ok,
+          subscription_id: id,
+          result: payload
+        })
 
       :error ->
         Logger.debug(fn ->
@@ -633,8 +641,8 @@ defmodule GraphQLWSClient do
       Connection.reply(from, {:error, error})
     end)
 
-    Enum.each(state.listeners, fn {id, pid} ->
-      send(pid, %Event{subscription_id: id, error: error})
+    Enum.each(state.listeners, fn {id, listener} ->
+      send(listener, %Event{status: :error, subscription_id: id, error: error})
     end)
 
     State.reset_subscriptions(state)

@@ -3,17 +3,19 @@ defmodule GraphQLWSClient.Event do
   A event for a subscription.
   """
 
-  defstruct [:subscription_id, :result, :error]
+  defstruct [:error, :subscription_id, :result, :status]
 
   @type t ::
           %__MODULE__{
+            error: nil,
             subscription_id: GraphQLWSClient.subscription_id(),
             result: any,
-            error: nil
+            status: :ok
           }
           | %__MODULE__{
+              error: Exception.t(),
               subscription_id: GraphQLWSClient.subscription_id(),
               result: nil,
-              error: Exception.t()
+              status: :error
             }
 end

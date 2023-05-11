@@ -90,6 +90,7 @@ defmodule GraphQLWSClient.IntegrationTest do
       assert result["data"]["createPost"]
 
       assert_receive %Event{
+        status: :ok,
         subscription_id: ^subscription_id,
         result: event_result,
         error: nil
@@ -110,6 +111,7 @@ defmodule GraphQLWSClient.IntegrationTest do
         """)
 
       assert_receive %Event{
+        status: :error,
         subscription_id: ^subscription_id,
         result: nil,
         error: %QueryError{errors: errors}

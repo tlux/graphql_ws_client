@@ -537,6 +537,7 @@ defmodule GraphQLWSClientTest do
       send(client, :test_message)
 
       assert_receive %Event{
+        status: :ok,
         subscription_id: ^subscription_id,
         result: ^result,
         error: nil
@@ -557,6 +558,7 @@ defmodule GraphQLWSClientTest do
       send(client, :test_message)
 
       assert_receive %Event{
+        status: :error,
         subscription_id: ^subscription_id,
         result: nil,
         error: %QueryError{errors: ^errors}
@@ -602,6 +604,7 @@ defmodule GraphQLWSClientTest do
       send(client, :test_message)
 
       assert_receive %Event{
+        status: :error,
         subscription_id: ^subscription_id,
         result: nil,
         error: ^error
@@ -618,6 +621,7 @@ defmodule GraphQLWSClientTest do
       Process.exit(conn.pid, :kill)
 
       assert_receive %Event{
+        status: :error,
         subscription_id: ^subscription_id,
         result: nil,
         error: %SocketError{cause: :closed}
