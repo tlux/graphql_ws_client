@@ -55,8 +55,16 @@ defmodule GraphQLWSClient.State do
     Map.fetch(listeners, id)
   end
 
-  @spec put_listener(t, term, Listener.t()) :: t
-  def put_listener(%__MODULE__{} = state, id, %Listener{} = listener) do
+  @spec fetch_listener_by_monitor(t, reference) :: {:ok, Listener.t()} | :error
+  def fetch_listener_by_monitor(%__MODULE__{listeners: listeners}, monitor_ref) do
+    Enum.find_value(listeners, :error, fn
+      {_, %Listener{monitor_ref: ^monitor_ref} = listener} -> {:ok, listener}
+      _ -> nil
+    end)
+  end
+
+  @spec put_listener(t, Listener.t()) :: t
+  def put_listener(%__MODULE__{} = state, %Listener{id: id} = listener) do
     %{state | listeners: Map.put(state.listeners, id, listener)}
   end
 
@@ -65,21 +73,8 @@ defmodule GraphQLWSClient.State do
     %{state | listeners: Map.delete(state.listeners, id)}
   end
 
-  @spec remove_listener_by_pid(t, pid) :: t
-  def remove_listener_by_pid(%__MODULE__{} = state, pid) do
-    listeners =
-      state.listeners
-      |> Enum.reject(fn
-        {_, %Listener{pid: ^pid}} -> true
-        _ -> false
-      end)
-      |> Map.new()
-
-    %{state | listeners: listeners}
-  end
-
-  @spec put_query(t, term, Query.t()) :: t
-  def put_query(%__MODULE__{} = state, id, %Query{} = query) do
+  @spec put_query(t, Query.t()) :: t
+  def put_query(%__MODULE__{} = state, %Query{id: id} = query) do
     %{state | queries: Map.put(state.queries, id, query)}
   end
 

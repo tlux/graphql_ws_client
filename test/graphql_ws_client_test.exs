@@ -872,6 +872,45 @@ defmodule GraphQLWSClientTest do
     end
   end
 
+  describe "custom listener" do
+    setup do
+      listener = spawn(fn -> Process.sleep(:infinity) end)
+
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:push_message, fn @conn, _ -> :ok end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      subscription_id =
+        GraphQLWSClient.subscribe!(client, @query, @variables, listener)
+
+      on_exit(fn ->
+        Process.exit(listener, :normal)
+      end)
+
+      {:ok,
+       client: client, listener: listener, subscription_id: subscription_id}
+    end
+
+    test "remove listener when listener process goes down", %{
+      client: client,
+      listener: listener,
+      subscription_id: subscription_id
+    } do
+      assert capture_log(fn ->
+               Process.exit(listener, :kill)
+
+               # wait until the subscription is actually removed
+               Process.sleep(100)
+             end) =~
+               "Subscription #{subscription_id} removed as listener " <>
+                 "process #{inspect(listener)} went down"
+
+      refute Map.has_key?(get_state(client).listeners, subscription_id)
+    end
+  end
+
   defp get_state(client) do
     :sys.get_state(client).mod_state
   end
