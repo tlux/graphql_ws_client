@@ -68,14 +68,14 @@ defmodule GraphQLWSClient.State do
     %{state | listeners: Map.put(state.listeners, id, listener)}
   end
 
-  @spec remove_listener(t, term) :: t
-  def remove_listener(%__MODULE__{} = state, id) do
-    %{state | listeners: Map.delete(state.listeners, id)}
-  end
-
   @spec put_query(t, Query.t()) :: t
   def put_query(%__MODULE__{} = state, %Query{id: id} = query) do
     %{state | queries: Map.put(state.queries, id, query)}
+  end
+
+  @spec remove_listener(t, term) :: t
+  def remove_listener(%__MODULE__{} = state, id) do
+    %{state | listeners: Map.delete(state.listeners, id)}
   end
 
   @spec remove_query(t, term) :: t
