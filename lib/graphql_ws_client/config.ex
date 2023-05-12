@@ -11,7 +11,8 @@ defmodule GraphQLWSClient.Config do
           init_payload: any,
           path: String.t(),
           port: :inet.port_number(),
-          query_timeout: timeout
+          query_timeout: timeout,
+          resubscribe_on_reconnect: boolean
         }
 
   @enforce_keys [:host, :port]
@@ -24,7 +25,8 @@ defmodule GraphQLWSClient.Config do
     connect_on_start: true,
     driver: GraphQLWSClient.Drivers.Gun,
     path: "/",
-    query_timeout: :timer.seconds(5)
+    query_timeout: :timer.seconds(5),
+    resubscribe_on_reconnect: false
   ]
 
   @protocols %{
@@ -63,6 +65,9 @@ defmodule GraphQLWSClient.Config do
 
   * `:port` - The port to connect to. This is ignored when `:url` is specified
     instead.
+
+  * `:resubscribe_on_reconnect` - When set to `true`, all subscriptions are kept
+    between reconnects. Defaults to `false`.
 
   * `:url` - The URL of the websocket to connect to. Overwrites the `:host`,
     `:port` and `:path` options.
