@@ -397,24 +397,9 @@ defmodule GraphQLWSClient do
     end
   end
 
-  defp resubscribe(%State{} = state) do
-    Enum.each(state.listeners, fn {id, %State.Listener{payload: payload}} ->
-      Logger.debug(fmt_log("Resubscribe #{id} - #{inspect(payload)}"))
-
-      push_unsubscription(state.conn, id)
-      push_subscription(state.conn, id, payload)
-    end)
-  end
-
   @impl true
   def disconnect({:close, from}, %State{} = state) do
-    state =
-      state
-      |> close_connection()
-      |> State.reset_queries()
-
-    # State.reset_subscriptions(state)
-
+    state = close_connection(state)
     Connection.reply(from, :ok)
 
     Logger.info(fmt_log("Closed"))
@@ -530,8 +515,7 @@ defmodule GraphQLWSClient do
       ) do
     Logger.error("Socket process crashed")
 
-    {:disconnect, :socket_crashed,
-     flush_subscriptions_with_error(%SocketError{cause: :closed}, state)}
+    {:disconnect, :socket_down, state}
   end
 
   def handle_info({:DOWN, ref, :process, pid, reason}, %State{} = state) do
@@ -580,8 +564,7 @@ defmodule GraphQLWSClient do
       :disconnect ->
         Logger.debug(fmt_log("Websocket went down"))
 
-        {:disconnect, :socket_down,
-         flush_subscriptions_with_error(%SocketError{cause: :closed}, state)}
+        {:disconnect, :socket_down, state}
 
       :ignore ->
         Logger.debug(fmt_log("Ignored unexpected payload: #{inspect(msg)}"))
@@ -657,7 +640,21 @@ defmodule GraphQLWSClient do
   defp handle_error(error, %State{} = state) do
     Logger.error(fmt_log(error))
 
-    {:disconnect, :socket_error, flush_subscriptions_with_error(error, state)}
+    {:disconnect, :socket_error, state}
+  end
+
+  defp resubscribe(%State{} = state) do
+    Enum.each(state.listeners, fn {id, %State.Listener{payload: payload}} ->
+      Logger.debug(fmt_log("Resubscribe #{id} - #{inspect(payload)}"))
+
+      push_resubscription(state.conn, id, payload)
+    end)
+
+    Enum.each(state.queries, fn {id, %State.Query{payload: payload}} ->
+      Logger.debug(fmt_log("Query #{id} (retry) - #{inspect(payload)}"))
+
+      push_resubscription(state.conn, id, payload)
+    end)
   end
 
   defp push_subscription(conn, id, payload) do
@@ -672,26 +669,9 @@ defmodule GraphQLWSClient do
     Driver.push_message(conn, %Message{type: :complete, id: id})
   end
 
-  defp flush_subscriptions_with_error(error, state) do
-    Enum.each(state.queries, fn {_,
-                                 %State.Query{
-                                   from: from,
-                                   timeout_ref: timeout_ref
-                                 }} ->
-      Process.cancel_timer(timeout_ref)
-      Connection.reply(from, {:error, error})
-    end)
-
-    Enum.each(state.listeners, fn {subscription_id, %State.Listener{pid: pid}} ->
-      send(pid, %Event{
-        subscription_id: subscription_id,
-        status: :error,
-        result: error
-      })
-    end)
-
-    State.reset_queries(state)
-    # State.reset_subscriptions(state)
+  defp push_resubscription(conn, id, payload) do
+    push_unsubscription(conn, id)
+    push_subscription(conn, id, payload)
   end
 
   defp close_connection(%State{connected?: false} = state), do: state
@@ -702,13 +682,13 @@ defmodule GraphQLWSClient do
     State.reset_conn(state)
   end
 
-  defp bang!(:ok), do: :ok
-  defp bang!({:ok, result}), do: result
-  defp bang!({:error, error}), do: raise(error)
-
   defp query_payload(query, variables) do
     %{query: query, variables: Map.new(variables)}
   end
+
+  defp bang!(:ok), do: :ok
+  defp bang!({:ok, result}), do: result
+  defp bang!({:error, error}), do: raise(error)
 
   defp fmt_log(exception) when is_exception(exception) do
     exception
