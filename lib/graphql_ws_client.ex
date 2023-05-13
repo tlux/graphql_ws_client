@@ -384,7 +384,7 @@ defmodule GraphQLWSClient do
             Logger.error(fmt_log(error))
         end
 
-        {:backoff, config.backoff_interval, %{state | last_conn_error: error}}
+        {:backoff, config.backoff_interval, state}
     end
   end
 
@@ -407,7 +407,7 @@ defmodule GraphQLWSClient do
   def disconnect({:error, error}, %State{} = state) do
     state = close_connection(state)
 
-    Logger.info(fmt_log("Disconnected. Reconnecting..."))
+    Logger.info(fmt_log("Disconnected, reconnecting..."))
 
     flush_queries_with_error(state.queries, error)
 
@@ -415,8 +415,10 @@ defmodule GraphQLWSClient do
   end
 
   @impl true
-  def terminate(_reason, %State{} = state) do
-    Logger.debug(fmt_log("Terminating client, closing connection"))
+  def terminate(reason, %State{} = state) do
+    Logger.debug(
+      fmt_log("Terminating client, closing connection: #{inspect(reason)}")
+    )
 
     close_connection(state)
   end
