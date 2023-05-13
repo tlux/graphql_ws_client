@@ -6,8 +6,8 @@ defmodule GraphQLWSClient.State.Query do
   defstruct [:id, :from, :timeout_ref]
 
   @type t :: %__MODULE__{
-          id: term,
           from: GenServer.from(),
+          id: term,
           timeout_ref: reference
         }
 end

@@ -95,6 +95,25 @@ defmodule GraphQLWSClient.Driver do
   end
 
   @doc false
+  @spec push_subscribe(Conn.t(), term, any) :: :ok
+  def push_subscribe(conn, id, payload) do
+    push_message(conn, %Message{type: :subscribe, id: id, payload: payload})
+  end
+
+  @doc false
+  @spec push_complete(Conn.t(), term) :: :ok
+  def push_complete(conn, id) do
+    push_message(conn, %Message{type: :complete, id: id})
+  end
+
+  @doc false
+  @spec push_resubscribe(Conn.t(), term, any) :: :ok
+  def push_resubscribe(conn, id, payload) do
+    push_complete(conn, id)
+    push_subscribe(conn, id, payload)
+  end
+
+  @doc false
   @spec parse_message(Conn.t(), msg :: any) ::
           {:ok, Message.t()} | {:error, Exception.t()} | :ignore | :disconnect
   def parse_message(%Conn{driver: driver} = conn, msg) do
