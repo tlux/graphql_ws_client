@@ -42,7 +42,6 @@ defmodule GraphQLWSClient.State do
         conn: nil,
         monitor_ref: nil
     }
-    |> reset_subscriptions()
   end
 
   @spec fetch_subscription(t, term) :: {:ok, Listener.t() | Query.t()} | :error
@@ -88,6 +87,11 @@ defmodule GraphQLWSClient.State do
     state
     |> remove_listener(id)
     |> remove_query(id)
+  end
+
+  @spec reset_queries(t) :: t
+  def reset_queries(%__MODULE__{} = state) do
+    %{state | queries: %{}}
   end
 
   @spec reset_subscriptions(t) :: t
