@@ -83,20 +83,17 @@ defmodule GraphQLWSClient do
     otp_app = Keyword.fetch!(opts, :otp_app)
 
     quote location: :keep do
-      @doc false
-      @spec __config__() :: Config.t()
-      def __config__ do
-        unquote(otp_app)
-        |> Application.get_env(__MODULE__, [])
-        |> Config.new()
-      end
-
       @doc """
       Starts the `#{unquote(__MODULE__)}`.
       """
       def start_link(opts \\ []) do
+        config =
+          unquote(otp_app)
+          |> Application.get_env(__MODULE__, [])
+          |> Config.new()
+
         unquote(__MODULE__).start_link(
-          __config__(),
+          config,
           Keyword.put_new(opts, :name, __MODULE__)
         )
       end
@@ -362,15 +359,9 @@ defmodule GraphQLWSClient do
       fmt_log("Connecting to #{config.host}:#{config.port} at #{config.path}")
     )
 
-    init_payload =
-      case info do
-        {:open, _, {:payload, init_payload}} -> init_payload
-        _ -> state.init_payload
-      end
+    state = put_init_payload(state, info)
 
-    state = %{state | init_payload: init_payload}
-
-    case Driver.connect(config, init_payload) do
+    case Driver.connect(config, state.init_payload) do
       {:ok, %Conn{} = conn} ->
         monitor_ref = Process.monitor(conn.pid)
 
@@ -380,10 +371,9 @@ defmodule GraphQLWSClient do
 
         Logger.info(fmt_log("Connected"))
 
-        state = State.put_conn(state, conn, monitor_ref)
-        resubscribe(state)
+        resubscribe_listeners(conn, state.listeners)
 
-        {:ok, state}
+        {:ok, State.put_conn(state, conn, monitor_ref)}
 
       {:error, error} ->
         case info do
@@ -394,9 +384,15 @@ defmodule GraphQLWSClient do
             Logger.error(fmt_log(error))
         end
 
-        {:backoff, config.backoff_interval, state}
+        {:backoff, config.backoff_interval, %{state | last_conn_error: error}}
     end
   end
+
+  def put_init_payload(%State{} = state, {:open, _, {:payload, init_payload}}) do
+    %{state | init_payload: init_payload}
+  end
+
+  def put_init_payload(%State{} = state, _), do: state
 
   @impl true
   def disconnect({:close, from}, %State{} = state) do
@@ -408,12 +404,14 @@ defmodule GraphQLWSClient do
     {:noconnect, %{state | init_payload: state.config.init_payload}}
   end
 
-  def disconnect(_info, %State{} = state) do
+  def disconnect({:error, error}, %State{} = state) do
     state = close_connection(state)
 
     Logger.info(fmt_log("Disconnected. Reconnecting..."))
 
-    {:connect, :reconnect, state}
+    flush_queries_with_error(state.queries, error)
+
+    {:connect, :reconnect, State.reset_queries(state)}
   end
 
   @impl true
@@ -448,14 +446,14 @@ defmodule GraphQLWSClient do
     {:reply, connected?, state}
   end
 
-  def handle_call(_msg, _from, %State{connected?: false} = state) do
+  def handle_call(_info, _from, %State{connected?: false} = state) do
     {:reply, {:error, %SocketError{cause: :closed}}, state}
   end
 
   def handle_call({:query, query, variables, timeout}, from, %State{} = state) do
     id = UUID.uuid4()
     payload = query_payload(query, variables)
-    push_subscription(state.conn, id, payload)
+    Driver.push_subscribe(state.conn, id, payload)
 
     timeout_ref =
       Process.send_after(
@@ -470,7 +468,6 @@ defmodule GraphQLWSClient do
      State.put_query(state, %State.Query{
        from: from,
        id: id,
-       payload: payload,
        timeout_ref: timeout_ref
      })}
   end
@@ -483,7 +480,7 @@ defmodule GraphQLWSClient do
     monitor_ref = Process.monitor(pid)
     id = UUID.uuid4()
     payload = query_payload(query, variables)
-    push_subscription(state.conn, id, payload)
+    Driver.push_subscribe(state.conn, id, payload)
 
     Logger.debug(fmt_log("Subscribe #{id} - #{inspect(payload)}"))
 
@@ -505,7 +502,7 @@ defmodule GraphQLWSClient do
 
     case Map.fetch(listeners, id) do
       {:ok, %State.Listener{monitor_ref: monitor_ref}} ->
-        push_unsubscription(state.conn, id)
+        Driver.push_complete(state.conn, id)
         Process.demonitor(monitor_ref)
 
         {:reply, :ok, State.remove_listener(state, id)}
@@ -524,7 +521,7 @@ defmodule GraphQLWSClient do
       ) do
     Logger.error("Socket process crashed")
 
-    {:disconnect, :socket_down, state}
+    {:disconnect, {:error, %SocketError{cause: :closed}}, state}
   end
 
   def handle_info({:DOWN, ref, :process, pid, reason}, %State{} = state) do
@@ -552,7 +549,7 @@ defmodule GraphQLWSClient do
       {:ok, %State.Query{from: from}} ->
         Logger.debug(fmt_log("Query #{id} timed out"))
 
-        push_unsubscription(conn, id)
+        Driver.push_complete(conn, id)
         Connection.reply(from, {:error, %SocketError{cause: :timeout}})
 
         {:noreply, State.remove_query(state, id)}
@@ -571,9 +568,9 @@ defmodule GraphQLWSClient do
         handle_error(error, state)
 
       :disconnect ->
-        Logger.debug(fmt_log("Websocket went down"))
+        Logger.debug(fmt_log("Socket went down"))
 
-        {:disconnect, :socket_down, state}
+        {:disconnect, {:error, %SocketError{cause: :closed}}, state}
 
       :ignore ->
         Logger.debug(fmt_log("Ignored unexpected payload: #{inspect(msg)}"))
@@ -588,6 +585,8 @@ defmodule GraphQLWSClient do
     {:noreply, state}
   end
 
+  # Helpers
+
   defp handle_message(%Message{type: :complete, id: id}, %State{} = state) do
     Logger.debug(fmt_log("Message #{id} - complete"))
 
@@ -601,9 +600,8 @@ defmodule GraphQLWSClient do
     error = %QueryError{errors: payload}
 
     case State.fetch_subscription(state, id) do
-      {:ok, %State.Query{from: from, timeout_ref: timeout_ref}} ->
-        Process.cancel_timer(timeout_ref)
-        Connection.reply(from, {:error, error})
+      {:ok, %State.Query{} = query} ->
+        reply_to_query(query, {:error, error})
 
       {:ok, %State.Listener{pid: pid}} ->
         Logger.debug(fmt_log("Message #{id} - error: #{inspect(payload)}"))
@@ -626,9 +624,8 @@ defmodule GraphQLWSClient do
          %State{} = state
        ) do
     case State.fetch_subscription(state, id) do
-      {:ok, %State.Query{from: from, timeout_ref: timeout_ref}} ->
-        Process.cancel_timer(timeout_ref)
-        Connection.reply(from, {:ok, payload})
+      {:ok, %State.Query{} = query} ->
+        reply_to_query(query, {:ok, payload})
 
       {:ok, %State.Listener{pid: pid}} ->
         Logger.debug(fmt_log("Message #{id} - OK: #{inspect(payload)}"))
@@ -649,38 +646,26 @@ defmodule GraphQLWSClient do
   defp handle_error(error, %State{} = state) do
     Logger.error(fmt_log(error))
 
-    {:disconnect, :socket_error, state}
+    {:disconnect, {:error, error}, state}
   end
 
-  defp resubscribe(%State{} = state) do
-    Enum.each(state.listeners, fn {id, %State.Listener{payload: payload}} ->
+  defp resubscribe_listeners(conn, listeners) do
+    Enum.each(listeners, fn {id, %State.Listener{payload: payload}} ->
       Logger.debug(fmt_log("Resubscribe #{id} - #{inspect(payload)}"))
 
-      push_resubscription(state.conn, id, payload)
-    end)
-
-    Enum.each(state.queries, fn {id, %State.Query{payload: payload}} ->
-      Logger.debug(fmt_log("Query #{id} (retry) - #{inspect(payload)}"))
-
-      push_resubscription(state.conn, id, payload)
+      Driver.push_resubscribe(conn, id, payload)
     end)
   end
 
-  defp push_subscription(conn, id, payload) do
-    Driver.push_message(conn, %Message{
-      type: :subscribe,
-      id: id,
-      payload: payload
-    })
+  def flush_queries_with_error(queries, error) do
+    Enum.each(queries, fn {_, query} ->
+      reply_to_query(query, {:error, error})
+    end)
   end
 
-  defp push_unsubscription(conn, id) do
-    Driver.push_message(conn, %Message{type: :complete, id: id})
-  end
-
-  defp push_resubscription(conn, id, payload) do
-    push_unsubscription(conn, id)
-    push_subscription(conn, id, payload)
+  defp reply_to_query(%State.Query{from: from, timeout_ref: timeout_ref}, reply) do
+    Process.cancel_timer(timeout_ref)
+    Connection.reply(from, reply)
   end
 
   defp close_connection(%State{connected?: false} = state), do: state

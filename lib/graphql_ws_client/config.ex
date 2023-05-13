@@ -64,6 +64,9 @@ defmodule GraphQLWSClient.Config do
   * `:port` - The port to connect to. This is ignored when `:url` is specified
     instead.
 
+  * `:query_timeout` - The default query timeout in milliseconds. Defaults to
+    `5000`.
+
   * `:url` - The URL of the websocket to connect to. Overwrites the `:host`,
     `:port` and `:path` options.
   """

@@ -93,9 +93,4 @@ defmodule GraphQLWSClient.State do
   def reset_queries(%__MODULE__{} = state) do
     %{state | queries: %{}}
   end
-
-  @spec reset_subscriptions(t) :: t
-  def reset_subscriptions(%__MODULE__{} = state) do
-    %{state | listeners: %{}, queries: %{}}
-  end
 end

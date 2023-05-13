@@ -144,19 +144,16 @@ defmodule GraphQLWSClient.StateTest do
     end
   end
 
-  describe "reset_subscriptions/1" do
-    test "remove all entries" do
+  describe "reset_queries/1" do
+    test "reset entries" do
+      state_without_queries = State.put_listener(%State{}, build_listener())
+
       state =
-        %State{}
-        |> State.put_listener(build_listener())
-        |> State.put_listener(build_listener())
+        state_without_queries
         |> State.put_query(build_query())
         |> State.put_query(build_query())
 
-      assert State.reset_subscriptions(state) == %State{
-               listeners: %{},
-               queries: %{}
-             }
+      assert State.reset_queries(state) == state_without_queries
     end
   end
 
@@ -164,7 +161,8 @@ defmodule GraphQLWSClient.StateTest do
     %State.Listener{
       id: UUID.uuid4(),
       pid: self(),
-      monitor_ref: make_ref()
+      monitor_ref: make_ref(),
+      payload: "__payload__"
     }
   end
 
