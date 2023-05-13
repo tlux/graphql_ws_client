@@ -4,7 +4,16 @@ defmodule GraphQLWSClientTest do
   import ExUnit.CaptureLog
   import Mox
 
-  alias GraphQLWSClient.{Config, Conn, Event, Message, QueryError, SocketError}
+  alias GraphQLWSClient.{
+    Config,
+    Conn,
+    Event,
+    Message,
+    OperationError,
+    QueryError,
+    SocketError
+  }
+
   alias GraphQLWSClient.Drivers.MockWithoutInit, as: MockDriver
 
   @opts [
@@ -85,7 +94,7 @@ defmodule GraphQLWSClientTest do
       assert GraphQLWSClient.connected?(client) == true
     end
 
-    test "error", %{config: config, conn: conn} do
+    test "connect error", %{config: config, conn: conn} do
       error = %SocketError{cause: :timeout}
 
       expect(MockDriver, :connect, fn ^conn ->
@@ -95,6 +104,18 @@ defmodule GraphQLWSClientTest do
       client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open(client) == {:error, error}
+    end
+
+    test "no-op when already connected", %{config: config, conn: conn} do
+      client = start_supervised!({GraphQLWSClient, config})
+
+      expect(MockDriver, :connect, fn ^conn ->
+        {:ok, conn}
+      end)
+
+      :ok = GraphQLWSClient.open(client)
+
+      assert GraphQLWSClient.open(client) == :ok
     end
   end
 
@@ -152,7 +173,7 @@ defmodule GraphQLWSClientTest do
       assert GraphQLWSClient.connected?(client) == true
     end
 
-    test "error", %{config: config, conn: conn} do
+    test "connect error", %{config: config, conn: conn} do
       error = %SocketError{cause: :timeout}
 
       expect(MockDriver, :connect, fn ^conn ->
@@ -162,6 +183,19 @@ defmodule GraphQLWSClientTest do
       client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open_with(client, @init_payload) == {:error, error}
+    end
+
+    test "no-op when already connected", %{config: config, conn: conn} do
+      client = start_supervised!({GraphQLWSClient, config})
+
+      expect(MockDriver, :connect, fn ^conn ->
+        {:ok, conn}
+      end)
+
+      :ok = GraphQLWSClient.open_with(client, @init_payload)
+
+      assert GraphQLWSClient.open_with(client, %{}) ==
+               {:error, %OperationError{message: "Already connected"}}
     end
 
     test "reconnect with original payload when connection closed", %{
