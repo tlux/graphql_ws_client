@@ -51,6 +51,7 @@ defmodule GraphQLWSClient do
     Driver,
     Event,
     Message,
+    OperationError,
     QueryError,
     SocketError,
     State
@@ -423,8 +424,16 @@ defmodule GraphQLWSClient do
   end
 
   @impl true
+  def handle_call(:open, _from, %State{connected?: true} = state) do
+    {:reply, :ok, state}
+  end
+
   def handle_call(:open, from, %State{} = state) do
     {:connect, {:open, from, nil}, state}
+  end
+
+  def handle_call({:open_with, _}, _from, %State{connected?: true} = state) do
+    {:reply, {:error, %OperationError{message: "Already connected"}}, state}
   end
 
   def handle_call({:open_with, init_payload}, from, %State{} = state) do
