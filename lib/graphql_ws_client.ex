@@ -528,7 +528,7 @@ defmodule GraphQLWSClient do
 
   def handle_info({:DOWN, ref, :process, pid, reason}, %State{} = state) do
     case State.fetch_listener_by_monitor(state, ref) do
-      {:ok, %State.Listener{id: id, pid: ^pid}} ->
+      {:ok, %State.Listener{id: id}} ->
         Logger.info(
           fmt_log(
             "Subscription #{id} removed as listener process " <>
