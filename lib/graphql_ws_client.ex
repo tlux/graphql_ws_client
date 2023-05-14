@@ -526,9 +526,9 @@ defmodule GraphQLWSClient do
     {:disconnect, {:error, %SocketError{cause: :closed}}, state}
   end
 
-  def handle_info({:DOWN, ref, :process, pid, reason}, %State{} = state) do
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %State{} = state) do
     case State.fetch_listener_by_monitor(state, ref) do
-      {:ok, %State.Listener{id: id}} ->
+      {:ok, %State.Listener{id: id, pid: pid}} ->
         Logger.info(
           fmt_log(
             "Subscription #{id} removed as listener process " <>
@@ -659,7 +659,7 @@ defmodule GraphQLWSClient do
     end)
   end
 
-  def flush_queries_with_error(queries, error) do
+  defp flush_queries_with_error(queries, error) do
     Enum.each(queries, fn {_, query} ->
       reply_to_query(query, {:error, error})
     end)
