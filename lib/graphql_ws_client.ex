@@ -388,11 +388,11 @@ defmodule GraphQLWSClient do
     end
   end
 
-  def put_init_payload(%State{} = state, {:open, _, {:payload, init_payload}}) do
+  defp put_init_payload(%State{} = state, {:open, _, {:payload, init_payload}}) do
     %{state | init_payload: init_payload}
   end
 
-  def put_init_payload(%State{} = state, _), do: state
+  defp put_init_payload(%State{} = state, _), do: state
 
   @impl true
   def disconnect({:close, from}, %State{} = state) do
