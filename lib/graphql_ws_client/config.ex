@@ -27,12 +27,7 @@ defmodule GraphQLWSClient.Config do
     query_timeout: :timer.seconds(5)
   ]
 
-  @protocols %{
-    "http" => "ws",
-    "https" => "wss",
-    "ws" => "ws",
-    "wss" => "wss"
-  }
+  @protocols ~w(http https ws wss)
 
   @doc """
   Builds a new config.
@@ -110,13 +105,12 @@ defmodule GraphQLWSClient.Config do
       raise ArgumentError, "URL has empty host"
     end
 
-    scheme =
-      Map.get_lazy(@protocols, uri.scheme, fn ->
-        raise ArgumentError,
-              "URL has invalid protocol: #{uri.scheme} " <>
-                "(allowed: #{Enum.join(Map.keys(@protocols), ", ")})"
-      end)
+    if uri.scheme not in @protocols do
+      raise ArgumentError,
+            "URL has invalid protocol: #{uri.scheme} " <>
+              "(allowed: #{Enum.join(@protocols, ", ")})"
+    end
 
-    %{uri | scheme: scheme}
+    uri
   end
 end
