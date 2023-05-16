@@ -44,22 +44,52 @@ Alternatively, you can write your own driver based on the
 
 ## Usage
 
+Connect to a socket:
+
 ```elixir
 {:ok, socket} = GraphQLWSClient.start_link(url: "ws://localhost:4000/socket")
+```
 
+Send a query or mutation and return the result immediately:
+
+```elixir
+{:ok, result} = GraphQLWSClient.query(socket, "query GetPost { ... }")
+```
+
+Register a subscription to listen for events:
+
+```elixir
 {:ok, subscription_id} = GraphQLWSClient.subscribe(
   socket,
   "subscription PostCreated { ... }"
 )
 
-{:ok, _} = GraphQLWSClient.query(socket, "mutation CreatePost { ... }")
+GraphQLWSClient.query!(socket, "mutation CreatePost { ... }")
 
 receive do
-  %GraphQLWSClient.Event{} = event ->
-    IO.inspect(event)
+  %GraphQLWSClient.Event{type: :error, id: ^subscription_id, payload: error} ->
+    IO.inspect(error, label: "error")
+  %GraphQLWSClient.Event{type: :next, id: ^subscription_id, payload: result} ->
+    IO.inspect(result)
+  %GraphQLWSClient.Event{type: :complete, id: ^subscription_id} ->
+    IO.puts("Stream closed")
 end
 
 GraphQLClient.close(socket)
+```
+
+You would usually put this inside of a custom `GenServer` and handle the events
+in `handle_info/3`.
+
+Alternatively, you can create a stream of results:
+
+```elixir
+socket
+|> GraphQLWSClient.stream!("subscription PostCreated { ... }")
+|> Stream.each(fn result ->
+  IO.inspect(result)
+end)
+|> Stream.run()
 ```
 
 ## Custom Client

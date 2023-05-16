@@ -1,7 +1,7 @@
-defmodule GraphQLWSClient.QueryErrorTest do
+defmodule GraphQLWSClient.GraphQLErrorTest do
   use ExUnit.Case, async: true
 
-  alias GraphQLWSClient.QueryError
+  alias GraphQLWSClient.GraphQLError
 
   describe "Exception.message/1" do
     test "message" do
@@ -16,7 +16,7 @@ defmodule GraphQLWSClient.QueryErrorTest do
         }
       ]
 
-      assert Exception.message(%QueryError{
+      assert Exception.message(%GraphQLError{
                errors: [
                  %{
                    "message" => "Something went wrong",
@@ -28,7 +28,7 @@ defmodule GraphQLWSClient.QueryErrorTest do
                  }
                ]
              }) ==
-               "GraphQL query error:\n\n#{inspect(errors, pretty: true)}"
+               "GraphQL errors:\n\n#{inspect(errors, pretty: true)}"
     end
   end
 end

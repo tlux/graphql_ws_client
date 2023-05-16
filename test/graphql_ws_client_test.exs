@@ -8,9 +8,9 @@ defmodule GraphQLWSClientTest do
     Config,
     Conn,
     Event,
+    GraphQLError,
     Message,
     OperationError,
-    QueryError,
     SocketError
   }
 
@@ -338,7 +338,7 @@ defmodule GraphQLWSClientTest do
         {:ok, %Message{type: :next, id: id, payload: payload}}
       end)
       |> expect(:parse_message, fn @conn, {:complete_msg, id} ->
-        send(test_pid, :completed_msg)
+        send(test_pid, :completed)
         {:ok, %Message{type: :complete, id: id}}
       end)
 
@@ -348,10 +348,10 @@ defmodule GraphQLWSClientTest do
 
       # the subscription is only removed after the complete message is received,
       # this may happen after the client already replied to the query function
-      assert_receive :completed_msg
+      assert_receive :completed
     end
 
-    test "query error" do
+    test "GraphQL error" do
       test_pid = self()
       errors = [%{"message" => "Something went wrong"}]
 
@@ -366,18 +366,18 @@ defmodule GraphQLWSClientTest do
         {:ok, %Message{type: :error, id: id, payload: errors}}
       end)
       |> expect(:parse_message, fn @conn, {:complete_msg, id} ->
-        send(test_pid, :completed_msg)
+        send(test_pid, :completed)
         {:ok, %Message{type: :complete, id: id}}
       end)
 
       client = start_supervised!({GraphQLWSClient, @config})
 
       assert GraphQLWSClient.query(client, @query, @variables) ==
-               {:error, %QueryError{errors: errors}}
+               {:error, %GraphQLError{errors: errors}}
 
       # the subscription is only removed after the complete message is received,
       # this may happen after the client already replied to the query function
-      assert_receive :completed_msg
+      assert_receive :completed
     end
 
     test "not connected" do
@@ -541,7 +541,7 @@ defmodule GraphQLWSClientTest do
         {:ok, %Message{type: :next, id: id, payload: payload}}
       end)
       |> expect(:parse_message, fn @conn, {:complete_msg, id} ->
-        send(test_pid, :completed_msg)
+        send(test_pid, :completed)
         {:ok, %Message{type: :complete, id: id}}
       end)
 
@@ -551,10 +551,10 @@ defmodule GraphQLWSClientTest do
 
       # the subscription is only removed after the complete message is received,
       # this may happen after the client already replied to the query function
-      assert_receive :completed_msg
+      assert_receive :completed
     end
 
-    test "query error" do
+    test "GraphQL error" do
       test_pid = self()
       errors = [%{"message" => "Something went wrong"}]
 
@@ -569,20 +569,20 @@ defmodule GraphQLWSClientTest do
         {:ok, %Message{type: :error, id: id, payload: errors}}
       end)
       |> expect(:parse_message, fn @conn, {:complete_msg, id} ->
-        send(test_pid, :completed_msg)
+        send(test_pid, :completed)
         {:ok, %Message{type: :complete, id: id}}
       end)
 
       client = start_supervised!({GraphQLWSClient, @config})
-      error = %QueryError{errors: errors}
+      error = %GraphQLError{errors: errors}
 
-      assert_raise QueryError, Exception.message(error), fn ->
+      assert_raise GraphQLError, Exception.message(error), fn ->
         GraphQLWSClient.query!(client, @query, @variables)
       end
 
       # the subscription is only removed after the complete message is received,
       # this may happen after the client already replied to the query function
-      assert_receive :completed_msg
+      assert_receive :completed
     end
 
     test "not connected" do
@@ -720,6 +720,14 @@ defmodule GraphQLWSClientTest do
       refute Map.has_key?(get_state(client).listeners, subscription_id)
     end
 
+    test "subscription not found" do
+      expect(MockDriver, :connect, fn @conn -> {:ok, @conn} end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert GraphQLWSClient.unsubscribe(client, "__invalid__") == :ok
+    end
+
     test "not connected" do
       client =
         start_supervised!(
@@ -769,6 +777,65 @@ defmodule GraphQLWSClientTest do
     end
   end
 
+  describe "stream!/3" do
+    @payload %{"foo" => "bar"}
+
+    test "terminated stream" do
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:push_message, fn @conn, %Message{type: :subscribe, id: id} ->
+        send(self(), {:next_msg, id})
+        :ok
+      end)
+      |> expect(:parse_message, 3, fn @conn, {:next_msg, id} ->
+        send(self(), {:next_msg, id})
+        {:ok, %Message{type: :next, id: id, payload: @payload}}
+      end)
+      |> expect(:parse_message, fn @conn, {:next_msg, id} ->
+        {:ok, %Message{type: :complete, id: id}}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert client
+             |> GraphQLWSClient.stream!(@query, @variables)
+             |> Enum.to_list() == [@payload, @payload, @payload]
+    end
+
+    test "unterminated stream" do
+      test_pid = self()
+
+      MockDriver
+      |> expect(:connect, fn @conn -> {:ok, @conn} end)
+      |> expect(:push_message, fn @conn, %Message{type: :subscribe, id: id} ->
+        send(self(), {:next_msg, id})
+        send(test_pid, {:subscribed, id})
+        :ok
+      end)
+      |> expect(:parse_message, 2, fn @conn, {:next_msg, id} ->
+        send(self(), {:next_msg, id})
+        {:ok, %Message{type: :next, id: id, payload: @payload}}
+      end)
+      |> expect(:parse_message, fn @conn, {:next_msg, id} ->
+        {:ok, %Message{type: :next, id: id, payload: @payload}}
+      end)
+      |> expect(:push_message, fn @conn, %Message{type: :complete, id: id} ->
+        send(test_pid, {:unsubscribed, id})
+        :ok
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config})
+
+      assert client
+             |> GraphQLWSClient.stream!(@query, @variables)
+             |> Stream.take(3)
+             |> Enum.to_list() == [@payload, @payload, @payload]
+
+      assert_receive {:subscribed, subscription_id}
+      assert_receive {:unsubscribed, ^subscription_id}
+    end
+  end
+
   describe "listener" do
     setup do
       pid = spawn(fn -> Process.sleep(:infinity) end)
@@ -804,9 +871,9 @@ defmodule GraphQLWSClientTest do
       send(client, :test_message)
 
       assert_receive %Event{
-        status: :ok,
+        type: :next,
         subscription_id: ^subscription_id,
-        result: ^result
+        payload: ^result
       }
     end
 
@@ -824,9 +891,26 @@ defmodule GraphQLWSClientTest do
       send(client, :test_message)
 
       assert_receive %Event{
-        status: :error,
+        type: :error,
         subscription_id: ^subscription_id,
-        result: %QueryError{errors: ^errors}
+        payload: %GraphQLError{errors: ^errors}
+      }
+    end
+
+    test "complete message", %{
+      client: client,
+      conn: conn,
+      subscription_id: subscription_id
+    } do
+      expect(MockDriver, :parse_message, fn ^conn, :test_message ->
+        {:ok, %Message{id: subscription_id, type: :complete}}
+      end)
+
+      send(client, :test_message)
+
+      assert_receive %Event{
+        type: :complete,
+        subscription_id: ^subscription_id
       }
     end
 
@@ -880,7 +964,7 @@ defmodule GraphQLWSClientTest do
                                       variables: @variables
                                     }
                                   } ->
-        send(test_pid, :completed_msg)
+        send(test_pid, :completed)
         :ok
       end)
 
@@ -888,7 +972,7 @@ defmodule GraphQLWSClientTest do
 
       send(client, :test_message)
 
-      assert_receive :completed_msg
+      assert_receive :completed
       assert get_state(client).listeners == listeners
     end
 
@@ -924,7 +1008,7 @@ defmodule GraphQLWSClientTest do
                                       variables: @variables
                                     }
                                   } ->
-        send(test_pid, :completed_msg)
+        send(test_pid, :completed)
         :ok
       end)
 
@@ -932,7 +1016,7 @@ defmodule GraphQLWSClientTest do
 
       send(client, :test_message)
 
-      assert_receive :completed_msg
+      assert_receive :completed
       assert get_state(client).listeners == listeners
     end
 
@@ -970,7 +1054,7 @@ defmodule GraphQLWSClientTest do
                                       variables: @variables
                                     }
                                   } ->
-        send(test_pid, :completed_msg)
+        send(test_pid, :completed)
         :ok
       end)
 
@@ -978,7 +1062,7 @@ defmodule GraphQLWSClientTest do
 
       Process.exit(conn.pid, :kill)
 
-      assert_receive :completed_msg
+      assert_receive :completed
       assert get_state(client).listeners == listeners
     end
   end
