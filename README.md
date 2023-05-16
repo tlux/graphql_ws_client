@@ -18,7 +18,7 @@ dependencies in `mix.exs`.
 ```elixir
 def deps do
   [
-    {:graphql_ws_client, "~> 1.0"},
+    {:graphql_ws_client, "~> 2.0"},
   ]
 end
 ```
