@@ -6,7 +6,6 @@ defmodule GraphQLWSClient.IteratorTest do
   alias GraphQLWSClient.Config
   alias GraphQLWSClient.Conn
   alias GraphQLWSClient.Drivers.MockWithoutInit, as: MockDriver
-  alias GraphQLWSClient.GraphQLError
   alias GraphQLWSClient.Iterator
   alias GraphQLWSClient.Iterator.Opts
   alias GraphQLWSClient.Message
@@ -167,35 +166,20 @@ defmodule GraphQLWSClient.IteratorTest do
     end
 
     test "GraphQL error", %{opts: opts} do
-      test_pid = self()
       errors = [%{"message" => "Something went wrong"}]
 
       MockDriver
-      |> expect(:push_message, fn @conn, %Message{id: id} ->
-        send(test_pid, {:subscribed, id})
+      |> expect(:push_message, fn @conn, %Message{type: :subscribe, id: id} ->
         send(self(), {:next_msg, id})
         :ok
       end)
       |> expect(:parse_message, fn @conn, {:next_msg, id} ->
         {:ok, %Message{type: :error, id: id, payload: errors}}
       end)
-      |> expect(:push_message, fn @conn, %Message{type: :complete, id: id} ->
-        send(test_pid, {:completed, id})
-        :ok
-      end)
 
       iterator = start_supervised!({Iterator, opts})
 
-      assert_receive {:subscribed, id}
-      assert_receive {:completed, ^id}
-
-      try do
-        Iterator.next(iterator)
-        flunk("expected next/1 to exit")
-      catch
-        :exit, {{:error, error}, _} ->
-          assert error == %GraphQLError{errors: errors}
-      end
+      assert Iterator.next(iterator) == :halt
     end
 
     test "client crashed", %{opts: opts} do

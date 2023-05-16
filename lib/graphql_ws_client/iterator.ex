@@ -5,6 +5,8 @@ defmodule GraphQLWSClient.Iterator do
 
   require Logger
 
+  import GraphQLWSClient.FormatLog
+
   alias GraphQLWSClient.Event
   alias GraphQLWSClient.Iterator.{Opts, State}
 
@@ -95,10 +97,16 @@ defmodule GraphQLWSClient.Iterator do
         {:DOWN, ref, :process, _pid, _reason},
         %State{monitor_ref: ref} = state
       ) do
-    {:stop, :closed, halt(state)}
+    {:noreply, halt(state)}
   end
 
   def handle_info(%Event{type: :complete}, %State{} = state) do
+    {:noreply, halt(state)}
+  end
+
+  def handle_info(%Event{type: :error}, %State{} = state) do
+    Logger.error(format_log("Iteration halted due to error"))
+
     {:noreply, halt(state)}
   end
 
@@ -115,16 +123,17 @@ defmodule GraphQLWSClient.Iterator do
     {:noreply, %{state | buffer: [], from: nil}}
   end
 
-  def handle_info(%Event{type: :error, payload: error}, %State{} = state) do
-    {:stop, {:error, error}, state}
-  end
-
   # Helpers
 
   defp halt(state) do
     if state.from do
-      buffer = if state.buffer == [], do: :halt, else: state.buffer
-      GenServer.reply(state.from, buffer)
+      reply =
+        case state.buffer do
+          [] -> :halt
+          buffer -> buffer
+        end
+
+      GenServer.reply(state.from, reply)
     end
 
     %{state | from: nil, halted?: true, subscription_id: nil}
