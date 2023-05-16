@@ -1,7 +1,7 @@
 defmodule GraphQLWSClient.IntegrationTest do
   use ExUnit.Case
 
-  alias GraphQLWSClient.{Event, QueryError, TestClient}
+  alias GraphQLWSClient.{Event, GraphQLError, TestClient}
 
   setup do
     {:ok, client: start_supervised!(TestClient, id: :test_client)}
@@ -45,7 +45,7 @@ defmodule GraphQLWSClient.IntegrationTest do
     end
 
     test "critical error" do
-      assert {:error, %QueryError{errors: errors}} =
+      assert {:error, %GraphQLError{errors: errors}} =
                GraphQLWSClient.query(
                  TestClient,
                  """
@@ -92,9 +92,9 @@ defmodule GraphQLWSClient.IntegrationTest do
       assert result["data"]["createPost"]
 
       assert_receive %Event{
-        status: :ok,
+        type: :next,
         subscription_id: ^subscription_id,
-        result: event_result
+        payload: event_result
       }
 
       assert event_result["data"]["postCreated"]["id"] ==
@@ -112,9 +112,9 @@ defmodule GraphQLWSClient.IntegrationTest do
         """)
 
       assert_receive %Event{
-        status: :error,
+        type: :error,
         subscription_id: ^subscription_id,
-        result: %QueryError{errors: errors}
+        payload: %GraphQLError{errors: errors}
       }
 
       assert [%{"message" => message}] = errors
@@ -167,6 +167,57 @@ defmodule GraphQLWSClient.IntegrationTest do
 
       refute Process.alive?(client)
       refute Process.alive?(pid)
+    end
+  end
+
+  describe "stream" do
+    @describetag :integration
+
+    test "success" do
+      test_pid = self()
+
+      stream =
+        TestClient
+        |> GraphQLWSClient.stream!("""
+          subscription PostCreated {
+            postCreated {
+              author
+              body
+            }
+          }
+        """)
+        |> Stream.map(& &1["data"]["postCreated"])
+        |> Stream.each(fn data ->
+          send(test_pid, {:event, data})
+        end)
+        |> Stream.take(2)
+
+      task = Task.async(fn -> Enum.to_list(stream) end)
+
+      payloads = [
+        %{"author" => "Tobi", "body" => "Lorem Ipsum"},
+        %{"author" => "Casper", "body" => "Dolor sit amet"}
+      ]
+
+      refute_receive {:event, _}
+
+      Enum.each(payloads, fn payload ->
+        GraphQLWSClient.query!(
+          TestClient,
+          """
+            mutation CreatePost($author: String!, $body: String!) {
+              createPost(author: $author, body: $body) {
+                id
+              }
+            }
+          """,
+          payload
+        )
+
+        assert_receive {:event, ^payload}
+      end)
+
+      assert Task.await(task) == payloads
     end
   end
 end

@@ -6,21 +6,41 @@ defmodule GraphQLWSClient do
 
   ## Example
 
-      {:ok, socket} = GraphQLWSClient.start_link(url: "ws://localhost:4000/socket")
+  Send a query or mutation and return the result immediately:
+
+      {:ok, result} = GraphQLWSClient.query(socket, "query GetPost { ... }")
+
+  Register a subscription to listen for events:
 
       {:ok, subscription_id} = GraphQLWSClient.subscribe(
         socket,
         "subscription PostCreated { ... }"
       )
 
-      {:ok, _} = GraphQLWSClient.query(socket, "mutation CreatePost { ... }")
+      GraphQLWSClient.query!(socket, "mutation CreatePost { ... }")
 
       receive do
-        %GraphQLWSClient.Event{} = event ->
-          IO.inspect(event)
+        %GraphQLWSClient.Event{type: :error, id: ^subscription_id, payload: error} ->
+          IO.inspect(error, label: "error")
+        %GraphQLWSClient.Event{type: :next, id: ^subscription_id, payload: result} ->
+          IO.inspect(result)
+        %GraphQLWSClient.Event{type: :complete, id: ^subscription_id} ->
+          IO.puts("Stream closed")
       end
 
       GraphQLClient.close(socket)
+
+  You would usually put this inside of a custom `GenServer` and handle the events
+  in `handle_info/3`.
+
+  Alternatively, you can create a stream of results:
+
+      socket
+      |> GraphQLWSClient.stream!("subscription PostCreated { ... }")
+      |> Stream.each(fn result ->
+        IO.inspect(result)
+      end)
+      |> Stream.run()
 
   ## Custom Client
 
@@ -50,9 +70,10 @@ defmodule GraphQLWSClient do
     Conn,
     Driver,
     Event,
+    GraphQLError,
+    Iterator,
     Message,
     OperationError,
-    QueryError,
     SocketError,
     State
   }
@@ -324,6 +345,47 @@ defmodule GraphQLWSClient do
   end
 
   @doc """
+  Sends a GraphQL subscription to the websocket and returns an event stream.
+
+  ## Options
+
+  * `:buffer_size` - Sets the buffer size. If the buffer is exceeded, the oldest
+    events are discarded first. Although it is not recommended, you may also set
+    the value to `:infinity` to set no limit. Defaults to `1000`.
+
+  ## Example
+
+      iex> stream = GraphQLWSClient.stream!(
+      ...>   client,
+      ...>   \"""
+      ...>     subscription CommentAdded($postId: ID!) {
+      ...>       commentAdded(postId: $postId) { body }
+      ...>     }
+      ...>   \""",
+      ...>   %{"postId" => 1337}
+      ...> )
+
+  Print events as they come in:
+
+      iex> stream
+      ...> |> Stream.each(fn result -> IO.inspect(result) end)
+      ...> |> Stream.run()
+
+  Wait for a fixed number of events to come in and then turn them into a list:
+
+      iex> stream |> Stream.take(3) |> Enum.to_list()
+  """
+  @doc since: "2.0.0"
+  @spec stream!(client, query, variables, Keyword.t()) :: Enumerable.t()
+  def stream!(client, query, variables \\ %{}, opts \\ []) do
+    Stream.resource(
+      fn -> Iterator.open!(client, query, variables, opts) end,
+      fn iterator -> {Iterator.next(iterator), iterator} end,
+      &Iterator.close/1
+    )
+  end
+
+  @doc """
   The default child specification that can be used to run the client under a
   supervisor.
   """
@@ -592,6 +654,10 @@ defmodule GraphQLWSClient do
   defp handle_message(%Message{type: :complete, id: id}, %State{} = state) do
     Logger.debug(fmt_log("Message #{id} - complete"))
 
+    with {:ok, %State.Listener{pid: pid}} <- Map.fetch(state.listeners, id) do
+      send(pid, %Event{subscription_id: id, type: :complete})
+    end
+
     {:noreply, State.remove_subscription(state, id)}
   end
 
@@ -599,7 +665,7 @@ defmodule GraphQLWSClient do
          %Message{type: :error, id: id, payload: payload},
          %State{} = state
        ) do
-    error = %QueryError{errors: payload}
+    error = %GraphQLError{errors: payload}
 
     case State.fetch_subscription(state, id) do
       {:ok, %State.Query{} = query} ->
@@ -610,8 +676,8 @@ defmodule GraphQLWSClient do
 
         send(pid, %Event{
           subscription_id: id,
-          status: :error,
-          result: error
+          type: :error,
+          payload: error
         })
 
       :error ->
@@ -634,8 +700,8 @@ defmodule GraphQLWSClient do
 
         send(pid, %Event{
           subscription_id: id,
-          status: :ok,
-          result: payload
+          type: :next,
+          payload: payload
         })
 
       :error ->

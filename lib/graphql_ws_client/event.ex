@@ -4,27 +4,33 @@ defmodule GraphQLWSClient.Event do
 
   The struct consists of these fields:
 
+  * `:payload` - The payload, either the payload, error or `nil`, dependent on
+    the `:type` field.
   * `:subscription_id` - A UUID identifying the subscription. This matches the
     subscription ID that is returned by `GraphQLWSClient.subscribe/3`.
-  * `:status` - Indicates whether the event contains the result data (`:ok`) or
-    an error (`:error`).
-  * `:result` - The payload, either the result or error data, dependent on the
-    `:status` field.
+  * `:type` - Indicates whether the event contains payload data (`:next`), there
+    is no more data to receive (`:complete`) or an error occurred (`:error`).
   """
 
-  defstruct [:subscription_id, :result, :status]
+  defstruct [:payload, :subscription_id, :type]
 
-  @type ok :: %__MODULE__{
+  @type complete :: %__MODULE__{
+          payload: nil,
           subscription_id: GraphQLWSClient.subscription_id(),
-          result: any,
-          status: :ok
+          type: :complete
         }
 
   @type error :: %__MODULE__{
+          payload: Exception.t(),
           subscription_id: GraphQLWSClient.subscription_id(),
-          result: Exception.t(),
-          status: :error
+          type: :error
         }
 
-  @type t :: ok | error
+  @type next :: %__MODULE__{
+          payload: any,
+          subscription_id: GraphQLWSClient.subscription_id(),
+          type: :next
+        }
+
+  @type t :: complete | error | next
 end
