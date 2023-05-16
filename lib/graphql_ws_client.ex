@@ -706,11 +706,7 @@ defmodule GraphQLWSClient do
       {:ok, %State.Listener{pid: pid}} ->
         Logger.debug(format_log("Message #{id} - OK: #{inspect(payload)}"))
 
-        send(pid, %Event{
-          subscription_id: id,
-          type: :next,
-          payload: payload
-        })
+        send(pid, %Event{subscription_id: id, type: :next, payload: payload})
 
       :error ->
         Logger.debug(
