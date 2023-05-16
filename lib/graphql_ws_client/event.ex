@@ -4,8 +4,8 @@ defmodule GraphQLWSClient.Event do
 
   The struct consists of these fields:
 
-  * `:payload` - The payload, either the payload, error or `nil`, dependent on
-    the `:type` field.
+  * `:payload` - Either the result, an error or `nil`, dependent on the `:type`
+    field.
   * `:subscription_id` - A UUID identifying the subscription. This matches the
     subscription ID that is returned by `GraphQLWSClient.subscribe/3`.
   * `:type` - Indicates whether the event contains payload data (`:next`), there
