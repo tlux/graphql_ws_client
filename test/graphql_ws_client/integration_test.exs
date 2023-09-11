@@ -3,13 +3,13 @@ defmodule GraphQLWSClient.IntegrationTest do
 
   alias GraphQLWSClient.{Event, GraphQLError, TestClient}
 
+  @moduletag :integration
+
   setup do
     {:ok, client: start_supervised!(TestClient, id: :test_client)}
   end
 
   describe "query" do
-    @describetag :integration
-
     test "success" do
       assert {:ok, result} =
                GraphQLWSClient.query(TestClient, """
@@ -64,8 +64,6 @@ defmodule GraphQLWSClient.IntegrationTest do
   end
 
   describe "subscribe" do
-    @describetag :integration
-
     test "success" do
       {:ok, subscription_id} =
         GraphQLWSClient.subscribe(TestClient, """
@@ -123,8 +121,6 @@ defmodule GraphQLWSClient.IntegrationTest do
   end
 
   describe "unsubscribe" do
-    @describetag :integration
-
     test "success" do
       {:ok, subscription_id} =
         GraphQLWSClient.subscribe(TestClient, """
@@ -157,8 +153,6 @@ defmodule GraphQLWSClient.IntegrationTest do
   end
 
   describe "stop" do
-    @describetag :integration
-
     test "close handle", %{client: client} do
       assert Process.alive?(client)
       %{mod_state: %{conn: %{pid: pid}}} = :sys.get_state(client)
@@ -171,8 +165,6 @@ defmodule GraphQLWSClient.IntegrationTest do
   end
 
   describe "stream" do
-    @describetag :integration
-
     test "success" do
       test_pid = self()
 
