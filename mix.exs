@@ -43,13 +43,13 @@ defmodule GraphQLWSClient.MixProject do
     [
       {:connection, "~> 1.1"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.16", only: :test, runtime: false},
-      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.3", only: [:dev, :test], runtime: false},
-      {:gun, "~> 2.0", optional: true},
+      {:excoveralls, "~> 0.18", only: :test, runtime: false},
+      {:ex_doc, "~>0.31", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:gun, "~> 2.1", optional: true},
       {:jason, "~> 1.4", optional: true},
       {:mix_audit, "~> 2.1", only: [:dev, :test]},
-      {:mox, "~> 1.0", only: :test},
+      {:mox, "~> 1.1", only: :test},
       {:uuid, "~> 1.1"}
     ]
   end
