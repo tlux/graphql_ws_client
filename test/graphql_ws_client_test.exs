@@ -47,7 +47,7 @@ defmodule GraphQLWSClientTest do
         {:ok, @conn}
       end)
 
-      assert {:ok, client} = GraphQLWSClient.start_link(@config) # start_supervised({GraphQLWSClient, @config})
+      assert {:ok, client} = GraphQLWSClient.start_link(@config)
       assert GraphQLWSClient.connected?(client) == true
     end
 
