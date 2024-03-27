@@ -19,22 +19,20 @@ permissions:
 
 jobs:
   test:
-    # Set up a Postgres DB service. By default, Phoenix applications
-    # use Postgres. This creates a database for running tests.
-    # Additional services can be defined here if required.
-    services:
-      graphql_ws_demo:
-        image: registry.gitlab.com/tlux/graphql-ws-demo
-        ports: ["8080:4000"]
-
     runs-on: ubuntu-latest
     name: Test on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
     strategy:
+      fail-fast: false
       # Specify the OTP and Elixir versions to use when building
       # and running the workflow steps.
       matrix:
-        otp: ["24.3.4", "25.0.4"] # Define the OTP version [required]
-        elixir: ["1.14.4"] # Define the elixir version [required]
+        include:
+          - otp: "24.x"
+            elixir: "1.14.x"
+          - otp: "25.x"
+            elixir: "1.15.x"
+          - otp: "26.x"
+            elixir: "1.16.x"
 
     steps:
       # Step: Setup Elixir + Erlang image as the base.
