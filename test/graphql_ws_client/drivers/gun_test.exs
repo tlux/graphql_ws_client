@@ -51,11 +51,11 @@ defmodule GraphQLWSClient.Drivers.GunTest do
 
   describe "connect/1" do
     @init_payload Jason.encode!(%{
-                    "type" => "connection_init",
-                    "payload" => @conn.init_payload
+                    type: "connection_init",
+                    payload: @conn.init_payload
                   })
 
-    @ack_payload Jason.encode!(%{"type" => "connection_ack"})
+    @ack_payload Jason.encode!(%{type: "connection_ack"})
 
     test "success", %{pid: pid, stream_ref: stream_ref} do
       WSClientMock

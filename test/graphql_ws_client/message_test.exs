@@ -46,7 +46,7 @@ defmodule GraphQLWSClient.MessageTest do
                %Message{id: "__id__", type: :complete},
                Jason
              ) ==
-               Jason.encode!(%{"id" => "__id__", "type" => "complete"})
+               Jason.encode!(%{id: "__id__", type: "complete"})
     end
 
     test "with payload" do
@@ -59,11 +59,11 @@ defmodule GraphQLWSClient.MessageTest do
                Jason
              ) ==
                Jason.encode!(%{
-                 "id" => "__id__",
-                 "type" => "subscribe",
-                 "payload" => %{
-                   "query" => "__query__",
-                   "variables" => %{"foo" => "bar"}
+                 id: "__id__",
+                 type: "subscribe",
+                 payload: %{
+                   query: "__query__",
+                   variables: %{"foo" => "bar"}
                  }
                })
     end
