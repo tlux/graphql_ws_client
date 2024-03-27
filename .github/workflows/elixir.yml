@@ -21,6 +21,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     name: Test on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+
+    services:
+      graphql_ws_demo:
+        image: registry.gitlab.com/tlux/graphql-ws-demo
+        ports: ["8080:4000"]
+
     strategy:
       fail-fast: false
       # Specify the OTP and Elixir versions to use when building
