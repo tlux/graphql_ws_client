@@ -59,7 +59,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
 
     test "success", %{pid: pid, stream_ref: stream_ref} do
       WSClientMock
-      |> expect(:open, fn 'example.com', 80, %{protocols: [:http]} ->
+      |> expect(:open, fn ~c"example.com", 80, %{protocols: [:http]} ->
         {:ok, pid}
       end)
       |> expect(:await_up, fn ^pid, 250 ->
