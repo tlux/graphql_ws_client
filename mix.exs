@@ -41,6 +41,7 @@ defmodule GraphQLWSClient.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:castore, "~> 1.0", only: :test, runtime: false},
       {:connection, "~> 1.1"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test, runtime: false},
