@@ -30,8 +30,10 @@ defmodule GraphQLWSClient.Iterator do
       |> Opts.new()
       |> Opts.validate!()
 
-    {:ok, iterator} = start_link(opts)
-    iterator
+    case start_link(opts) do
+      {:ok, iterator} -> iterator
+      {:error, error} -> raise error
+    end
   end
 
   @spec close(iterator) :: :ok
@@ -56,18 +58,21 @@ defmodule GraphQLWSClient.Iterator do
 
   @impl true
   def init(%Opts{} = opts) do
-    monitor_ref = Process.monitor(opts.client)
+    case GraphQLWSClient.subscribe(opts.client, opts.query, opts.variables) do
+      {:ok, subscription_id} ->
+        monitor_ref = Process.monitor(opts.client)
 
-    subscription_id =
-      GraphQLWSClient.subscribe!(opts.client, opts.query, opts.variables)
+        {:ok,
+         %State{
+           buffer_size: opts.buffer_size,
+           client: opts.client,
+           monitor_ref: monitor_ref,
+           subscription_id: subscription_id
+         }}
 
-    {:ok,
-     %State{
-       buffer_size: opts.buffer_size,
-       client: opts.client,
-       monitor_ref: monitor_ref,
-       subscription_id: subscription_id
-     }}
+      {:error, error} ->
+        {:stop, error}
+    end
   end
 
   @impl true
