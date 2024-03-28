@@ -394,6 +394,8 @@ defmodule GraphQLWSClientTest do
       config = %{@config | query_timeout: 200}
       conn = %{@conn | config: config}
 
+      stub(MockDriver, :disconnect, fn _ -> :ok end)
+
       MockDriver
       |> expect(:connect, fn _ -> {:ok, conn} end)
       |> expect(:push_message, fn _, %Message{id: id} ->
@@ -496,6 +498,8 @@ defmodule GraphQLWSClientTest do
   describe "query/4" do
     test "timeout" do
       test_pid = self()
+
+      stub(MockDriver, :disconnect, fn _ -> :ok end)
 
       MockDriver
       |> expect(:connect, fn _ -> {:ok, @conn} end)

@@ -26,7 +26,11 @@ defmodule GraphQLWSClient.Iterator do
   def open!(client, query, variables \\ %{}, opts \\ []) do
     opts =
       opts
-      |> Keyword.merge(client: client, query: query, variables: variables)
+      |> Keyword.merge(
+        client: client,
+        query: query,
+        variables: variables
+      )
       |> Opts.new()
       |> Opts.validate!()
 

@@ -3,7 +3,12 @@ defmodule GraphQLWSClient.Iterator.Opts do
 
   @enforce_keys [:client, :query]
 
-  defstruct [:client, :query, buffer_size: 1000, variables: %{}]
+  defstruct [
+    :client,
+    :query,
+    buffer_size: 1000,
+    variables: %{}
+  ]
 
   @type t :: %__MODULE__{
           buffer_size: pos_integer() | :infinity,

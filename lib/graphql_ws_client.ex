@@ -80,8 +80,6 @@ defmodule GraphQLWSClient do
     State
   }
 
-  @client_timeout :infinity
-
   @typedoc """
   Type for a client process.
   """
@@ -181,7 +179,7 @@ defmodule GraphQLWSClient do
   """
   @spec connected?(client) :: boolean
   def connected?(client) do
-    Connection.call(client, :connected?, @client_timeout)
+    call_no_timeout(client, :connected?)
   end
 
   @doc """
@@ -189,7 +187,7 @@ defmodule GraphQLWSClient do
   """
   @spec open(client) :: :ok | {:error, Exception.t()}
   def open(client) do
-    Connection.call(client, :open, @client_timeout)
+    call_no_timeout(client, :open)
   end
 
   @doc """
@@ -197,7 +195,9 @@ defmodule GraphQLWSClient do
   """
   @spec open!(client) :: :ok | no_return
   def open!(client) do
-    client |> open() |> bang!()
+    client
+    |> open()
+    |> bang!()
   end
 
   @doc """
@@ -206,7 +206,7 @@ defmodule GraphQLWSClient do
   @doc since: "1.0.0"
   @spec open_with(client, any) :: :ok | {:error, Exception.t()}
   def open_with(client, init_payload) do
-    Connection.call(client, {:open_with, init_payload}, @client_timeout)
+    call_no_timeout(client, {:open_with, init_payload})
   end
 
   @doc """
@@ -215,7 +215,9 @@ defmodule GraphQLWSClient do
   @doc since: "1.0.0"
   @spec open_with!(client, any) :: :ok | no_return
   def open_with!(client, init_payload) do
-    client |> open_with(init_payload) |> bang!()
+    client
+    |> open_with(init_payload)
+    |> bang!()
   end
 
   @doc """
@@ -223,7 +225,7 @@ defmodule GraphQLWSClient do
   """
   @spec close(client) :: :ok
   def close(client) do
-    Connection.call(client, :close, @client_timeout)
+    call_no_timeout(client, :close)
   end
 
   @doc """
@@ -241,11 +243,7 @@ defmodule GraphQLWSClient do
   @spec query(client, query, variables, nil | timeout) ::
           {:ok, any} | {:error, Exception.t()}
   def query(client, query, variables \\ %{}, timeout \\ nil) do
-    Connection.call(
-      client,
-      {:query, query, variables, timeout},
-      @client_timeout
-    )
+    call_no_timeout(client, {:query, query, variables, timeout})
   end
 
   @doc """
@@ -261,9 +259,9 @@ defmodule GraphQLWSClient do
       ...> )
       %{"data" => %{"posts" => %{"body" => "Lorem Ipsum"}}}
   """
-  @spec query!(client, query, variables, nil | timeout) :: any | no_return
-  def query!(client, query, variables \\ %{}, timeout \\ nil) do
-    case query(client, query, variables, timeout) do
+  @spec query!(client, query, variables) :: any | no_return
+  def query!(client, query, variables \\ %{}) do
+    case query(client, query, variables) do
       {:ok, result} -> result
       {:error, error} -> raise error
     end
@@ -289,11 +287,7 @@ defmodule GraphQLWSClient do
   @spec subscribe(client, query, variables, pid) ::
           {:ok, subscription_id} | {:error, Exception.t()}
   def subscribe(client, query, variables \\ %{}, listener \\ self()) do
-    Connection.call(
-      client,
-      {:subscribe, query, variables, listener},
-      @client_timeout
-    )
+    call_no_timeout(client, {:subscribe, query, variables, listener})
   end
 
   @doc """
@@ -330,7 +324,7 @@ defmodule GraphQLWSClient do
   """
   @spec unsubscribe(client, subscription_id) :: :ok | {:error, Exception.t()}
   def unsubscribe(client, subscription_id) do
-    Connection.call(client, {:unsubscribe, subscription_id}, @client_timeout)
+    call_no_timeout(client, {:unsubscribe, subscription_id})
   end
 
   @doc """
@@ -343,7 +337,9 @@ defmodule GraphQLWSClient do
   """
   @spec unsubscribe!(client, subscription_id) :: :ok | no_return
   def unsubscribe!(client, subscription_id) do
-    client |> unsubscribe(subscription_id) |> bang!()
+    client
+    |> unsubscribe(subscription_id)
+    |> bang!()
   end
 
   @doc """
@@ -378,7 +374,8 @@ defmodule GraphQLWSClient do
       iex> stream |> Stream.take(3) |> Enum.to_list()
   """
   @doc since: "2.0.0"
-  @spec stream!(client, query, variables, Keyword.t()) :: Enumerable.t()
+  @spec stream!(client, query, variables, Keyword.t()) ::
+          Enumerable.t() | no_return
   def stream!(client, query, variables \\ %{}, opts \\ []) do
     Stream.resource(
       fn -> Iterator.open!(client, query, variables, opts) end,
@@ -397,6 +394,10 @@ defmodule GraphQLWSClient do
       id: __MODULE__,
       start: {__MODULE__, :start_link, [opts]}
     }
+  end
+
+  defp call_no_timeout(client, req) do
+    Connection.call(client, req, :infinity)
   end
 
   # Callbacks
