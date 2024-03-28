@@ -420,7 +420,7 @@ defmodule GraphQLWSClient do
 
   @impl true
   def connect(info, %State{config: config} = state) do
-    Logger.info(
+    Logger.debug(
       format_log(
         "Connecting to #{config.host}:#{config.port} at #{config.path}"
       )
@@ -436,7 +436,7 @@ defmodule GraphQLWSClient do
           Connection.reply(from, :ok)
         end
 
-        Logger.info(format_log("Connected"))
+        Logger.debug(format_log("Connected"))
 
         resubscribe_listeners(conn, state.listeners)
 
@@ -474,7 +474,7 @@ defmodule GraphQLWSClient do
   def disconnect({:error, error}, %State{} = state) do
     state = close_connection(state)
 
-    Logger.info(format_log("Disconnected, reconnecting..."))
+    Logger.debug(format_log("Disconnected, reconnecting..."))
 
     flush_queries_with_error(state.queries, error)
 
@@ -484,7 +484,10 @@ defmodule GraphQLWSClient do
   @impl true
   def terminate(reason, %State{} = state) do
     Logger.debug(
-      format_log("Terminating client, closing connection: #{inspect(reason)}")
+      format_log(
+        "Terminating client, closing connection " <>
+          "(reason: #{inspect(reason)})"
+      )
     )
 
     close_connection(state)
@@ -596,10 +599,10 @@ defmodule GraphQLWSClient do
   def handle_info({:DOWN, ref, :process, _pid, reason}, %State{} = state) do
     case State.fetch_listener_by_monitor(state, ref) do
       {:ok, %State.Listener{id: id, pid: pid}} ->
-        Logger.info(
+        Logger.debug(
           format_log(
-            "Subscription #{id} removed as listener process " <>
-              "#{inspect(pid)} went down with reason #{inspect(reason)}"
+            "Subscription #{id} removed as listener " <>
+              "#{inspect(pid)} went down (reason: #{inspect(reason)})"
           )
         )
 

@@ -394,8 +394,6 @@ defmodule GraphQLWSClientTest do
       config = %{@config | query_timeout: 200}
       conn = %{@conn | config: config}
 
-      stub(MockDriver, :disconnect, fn _ -> :ok end)
-
       MockDriver
       |> expect(:connect, fn _ -> {:ok, conn} end)
       |> expect(:push_message, fn _, %Message{id: id} ->
@@ -498,8 +496,6 @@ defmodule GraphQLWSClientTest do
   describe "query/4" do
     test "timeout" do
       test_pid = self()
-
-      stub(MockDriver, :disconnect, fn _ -> :ok end)
 
       MockDriver
       |> expect(:connect, fn _ -> {:ok, @conn} end)
@@ -1100,14 +1096,10 @@ defmodule GraphQLWSClientTest do
       listener: listener,
       subscription_id: subscription_id
     } do
-      assert capture_log(fn ->
-               Process.exit(listener, :kill)
+      Process.exit(listener, :kill)
 
-               # wait until the subscription is actually removed
-               Process.sleep(100)
-             end) =~
-               "Subscription #{subscription_id} removed as listener " <>
-                 "process #{inspect(listener)} went down"
+      # wait until the subscription is actually removed
+      Process.sleep(100)
 
       refute Map.has_key?(get_state(client).listeners, subscription_id)
     end
