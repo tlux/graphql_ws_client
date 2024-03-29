@@ -78,13 +78,17 @@ defmodule GraphQLWSClient.Iterator do
   end
 
   @impl true
-  def terminate(_reason, %State{} = state) do
-    if state.monitor_ref do
-      Process.demonitor(state.monitor_ref, [:flush])
+  def terminate(_reason, %State{
+        client: client,
+        monitor_ref: monitor_ref,
+        subscription_id: subscription_id
+      }) do
+    if monitor_ref do
+      Process.demonitor(monitor_ref, [:flush])
     end
 
-    if state.subscription_id do
-      GraphQLWSClient.unsubscribe(state.client, state.subscription_id)
+    if subscription_id do
+      GraphQLWSClient.unsubscribe(client, subscription_id)
     end
   end
 
