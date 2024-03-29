@@ -36,5 +36,8 @@ defmodule QueryLoop do
   end
 end
 
-QueryLoop.query(socket)
+Task.start_link(fn ->
+  QueryLoop.query(socket)
+end)
+
 Process.sleep(15000)
