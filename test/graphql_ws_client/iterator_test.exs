@@ -3,10 +3,10 @@ defmodule GraphQLWSClient.IteratorTest do
 
   import Mox
 
-  alias GraphQLWSClient.GraphQLError
   alias GraphQLWSClient.Config
   alias GraphQLWSClient.Conn
   alias GraphQLWSClient.Drivers.MockWithoutInit, as: MockDriver
+  alias GraphQLWSClient.GraphQLError
   alias GraphQLWSClient.Iterator
   alias GraphQLWSClient.Iterator.Opts
   alias GraphQLWSClient.Message
