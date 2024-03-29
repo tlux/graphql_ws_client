@@ -378,7 +378,16 @@ defmodule GraphQLWSClient do
   def stream!(client, query, variables \\ %{}, opts \\ []) do
     Stream.resource(
       fn -> Iterator.open!(client, query, variables, opts) end,
-      fn iterator -> {Iterator.next(iterator), iterator} end,
+      fn iterator ->
+        next =
+          case Iterator.next(iterator) do
+            {:ok, elements} -> elements
+            {:error, error} -> raise error
+            :halt -> :halt
+          end
+
+        {next, iterator}
+      end,
       &Iterator.close/1
     )
   end

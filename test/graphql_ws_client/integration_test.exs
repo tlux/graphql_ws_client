@@ -212,5 +212,14 @@ defmodule GraphQLWSClient.IntegrationTest do
 
       assert Task.await(task) == payloads
     end
+
+    test "query error" do
+      assert_raise GraphQLError, fn ->
+        TestClient
+        |> GraphQLWSClient.stream!("foo")
+        |> Stream.take(1)
+        |> Stream.run()
+      end
+    end
   end
 end

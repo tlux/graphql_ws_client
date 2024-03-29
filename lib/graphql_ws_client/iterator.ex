@@ -17,6 +17,11 @@ defmodule GraphQLWSClient.Iterator do
     GenServer.start_link(__MODULE__, opts)
   end
 
+  @spec start(Opts.valid()) :: GenServer.on_start()
+  def start(opts) do
+    GenServer.start(__MODULE__, opts)
+  end
+
   @spec open!(
           GraphQLWSClient.client(),
           GraphQLWSClient.query(),
@@ -43,7 +48,7 @@ defmodule GraphQLWSClient.Iterator do
     GenServer.stop(iterator)
   end
 
-  @spec next(iterator) :: [any] | :halt
+  @spec next(iterator) :: {:ok, [any]} | {:error, Exception.t()} | :halt
   def next(iterator) do
     GenServer.call(iterator, :next, :infinity)
   end
@@ -102,7 +107,8 @@ defmodule GraphQLWSClient.Iterator do
   end
 
   def handle_call(:next, _from, %State{} = state) do
-    {:reply, Enum.reverse(state.buffer), %{state | buffer: [], from: nil}}
+    {:reply, {:ok, Enum.reverse(state.buffer)},
+     %{state | buffer: [], from: nil}}
   end
 
   @impl true
@@ -110,16 +116,16 @@ defmodule GraphQLWSClient.Iterator do
         {:DOWN, ref, :process, _pid, _reason},
         %State{monitor_ref: ref} = state
       ) do
-    {:noreply, halt(state)}
+    {:noreply, halt_and_reply(state)}
   end
 
   def handle_info(%Event{type: :complete}, %State{} = state) do
-    {:noreply, halt(state)}
+    {:noreply, halt_and_reply(state)}
   end
 
-  def handle_info(%Event{type: :error}, %State{} = state) do
-    Logger.error(format_log("Iteration halted due to error"))
-
+  def handle_info(%Event{type: :error, payload: error}, %State{} = state) do
+    Logger.error(format_log("Iteration halted: #{Exception.message(error)}"))
+    GenServer.reply(state.from, {:error, error})
     {:noreply, halt(state)}
   end
 
@@ -132,24 +138,28 @@ defmodule GraphQLWSClient.Iterator do
   end
 
   def handle_info(%Event{type: :next, payload: payload}, %State{} = state) do
-    GenServer.reply(state.from, Enum.reverse([payload | state.buffer]))
+    GenServer.reply(state.from, {:ok, Enum.reverse([payload | state.buffer])})
     {:noreply, %{state | buffer: [], from: nil}}
   end
 
   # Helpers
 
   defp halt(state) do
+    %{state | from: nil, halted?: true, subscription_id: nil}
+  end
+
+  defp halt_and_reply(state) do
     if state.from do
       reply =
         case state.buffer do
           [] -> :halt
-          buffer -> buffer
+          buffer -> {:ok, buffer}
         end
 
       GenServer.reply(state.from, reply)
     end
 
-    %{state | from: nil, halted?: true, subscription_id: nil}
+    halt(state)
   end
 
   defp truncate_buffer(list, :infinity), do: list

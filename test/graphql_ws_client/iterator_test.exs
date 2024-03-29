@@ -3,6 +3,7 @@ defmodule GraphQLWSClient.IteratorTest do
 
   import Mox
 
+  alias GraphQLWSClient.GraphQLError
   alias GraphQLWSClient.Config
   alias GraphQLWSClient.Conn
   alias GraphQLWSClient.Drivers.MockWithoutInit, as: MockDriver
@@ -91,8 +92,8 @@ defmodule GraphQLWSClient.IteratorTest do
 
       iterator = start_supervised!({Iterator, opts})
 
-      assert Iterator.next(iterator) == [@payload_1]
-      assert Iterator.next(iterator) == [@payload_2]
+      assert Iterator.next(iterator) == {:ok, [@payload_1]}
+      assert Iterator.next(iterator) == {:ok, [@payload_2]}
 
       # blocks caller when no results available
       task = Task.async(fn -> Iterator.next(iterator) end)
@@ -124,7 +125,10 @@ defmodule GraphQLWSClient.IteratorTest do
       iterator = start_supervised!({Iterator, %{opts | buffer_size: 3}})
 
       assert_receive :completed
-      assert Iterator.next(iterator) == [@payload_1, @payload_1, @payload_2]
+
+      assert Iterator.next(iterator) ==
+               {:ok, [@payload_1, @payload_1, @payload_2]}
+
       assert Iterator.next(iterator) == :halt
       assert Iterator.next(iterator) == :halt
     end
@@ -154,14 +158,16 @@ defmodule GraphQLWSClient.IteratorTest do
 
       assert_receive :completed
 
-      assert Iterator.next(iterator) == [
-               @payload_1,
-               @payload_1,
-               @payload_1,
-               @payload_1,
-               @payload_1,
-               @payload_2
-             ]
+      assert Iterator.next(iterator) ==
+               {:ok,
+                [
+                  @payload_1,
+                  @payload_1,
+                  @payload_1,
+                  @payload_1,
+                  @payload_1,
+                  @payload_2
+                ]}
 
       assert Iterator.next(iterator) == :halt
     end
@@ -180,7 +186,7 @@ defmodule GraphQLWSClient.IteratorTest do
 
       iterator = start_supervised!({Iterator, opts})
 
-      assert Iterator.next(iterator) == :halt
+      assert {:error, %GraphQLError{errors: ^errors}} = Iterator.next(iterator)
     end
 
     test "client crashed", %{opts: opts} do

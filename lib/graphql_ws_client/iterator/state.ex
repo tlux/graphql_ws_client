@@ -6,6 +6,7 @@ defmodule GraphQLWSClient.Iterator.State do
   defstruct [
     :buffer_size,
     :client,
+    :error,
     :from,
     :monitor_ref,
     :subscription_id,
