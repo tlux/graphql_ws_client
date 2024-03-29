@@ -62,15 +62,15 @@ defmodule GraphQLWSClient.Iterator do
 
   @impl true
   def init(%Opts{} = opts) do
+    Process.flag(:trap_exit, true)
+
     case GraphQLWSClient.subscribe(opts.client, opts.query, opts.variables) do
       {:ok, subscription_id} ->
-        monitor_ref = Process.monitor(opts.client)
-
         {:ok,
          %State{
            buffer_size: opts.buffer_size,
            client: opts.client,
-           monitor_ref: monitor_ref,
+           monitor_ref: Process.monitor(opts.client),
            subscription_id: subscription_id
          }}
 
@@ -81,7 +81,9 @@ defmodule GraphQLWSClient.Iterator do
 
   @impl true
   def terminate(_reason, %State{} = state) do
-    Process.demonitor(state.monitor_ref)
+    if state.monitor_ref do
+      Process.demonitor(state.monitor_ref, [:flush])
+    end
 
     if state.subscription_id do
       GraphQLWSClient.unsubscribe(state.client, state.subscription_id)

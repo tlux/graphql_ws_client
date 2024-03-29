@@ -9,6 +9,7 @@ defmodule GraphQLWSClient.IteratorTest do
   alias GraphQLWSClient.Iterator
   alias GraphQLWSClient.Iterator.Opts
   alias GraphQLWSClient.Message
+  alias GraphQLWSClient.SocketError
 
   setup :set_mox_from_context
   setup :verify_on_exit!
@@ -21,19 +22,18 @@ defmodule GraphQLWSClient.IteratorTest do
   @payload_2 %{"baz" => 23}
 
   setup do
-    test_pid = self()
-
-    expect(MockDriver, :connect, fn @conn ->
-      send(test_pid, :connected)
-      {:ok, @conn}
-    end)
-
-    client = start_supervised!({GraphQLWSClient, @config}, id: :test_client)
-    {:ok, client: client, test_pid: test_pid}
+    {:ok, test_pid: self()}
   end
 
   describe "open!/4" do
-    test "success", %{client: client, test_pid: test_pid} do
+    test "success", %{test_pid: test_pid} do
+      expect(MockDriver, :connect, fn @conn ->
+        send(test_pid, :connected)
+        {:ok, @conn}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config}, id: :test_client)
+
       expect(MockDriver, :push_message, fn @conn,
                                            %Message{
                                              type: :subscribe,
@@ -51,7 +51,14 @@ defmodule GraphQLWSClient.IteratorTest do
       assert_receive :subscribed
     end
 
-    test "non-numeric buffer size", %{client: client} do
+    test "non-numeric buffer size", %{test_pid: test_pid} do
+      expect(MockDriver, :connect, fn @conn ->
+        send(test_pid, :connected)
+        {:ok, @conn}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config}, id: :test_client)
+
       assert_receive :connected
 
       assert_raise ArgumentError, "invalid buffer size", fn ->
@@ -59,7 +66,14 @@ defmodule GraphQLWSClient.IteratorTest do
       end
     end
 
-    test "negative buffer size", %{client: client} do
+    test "negative buffer size", %{test_pid: test_pid} do
+      expect(MockDriver, :connect, fn @conn ->
+        send(test_pid, :connected)
+        {:ok, @conn}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config}, id: :test_client)
+
       assert_receive :connected
 
       assert_raise ArgumentError, "invalid buffer size", fn ->
@@ -69,8 +83,16 @@ defmodule GraphQLWSClient.IteratorTest do
   end
 
   describe "next/1" do
-    setup %{client: client} do
+    setup %{test_pid: test_pid} do
+      expect(MockDriver, :connect, fn @conn ->
+        send(test_pid, :connected)
+        {:ok, @conn}
+      end)
+
+      client = start_supervised!({GraphQLWSClient, @config}, id: :test_client)
+
       {:ok,
+       client: client,
        opts: Opts.new(client: client, query: @query, variables: @variables)}
     end
 
