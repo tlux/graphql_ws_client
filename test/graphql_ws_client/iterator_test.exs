@@ -9,7 +9,6 @@ defmodule GraphQLWSClient.IteratorTest do
   alias GraphQLWSClient.Iterator
   alias GraphQLWSClient.Iterator.Opts
   alias GraphQLWSClient.Message
-  alias GraphQLWSClient.SocketError
 
   setup :set_mox_from_context
   setup :verify_on_exit!

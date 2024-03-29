@@ -34,10 +34,8 @@ defmodule GraphQLWSClient.Iterator do
       |> Opts.new()
       |> Opts.validate!()
 
-    case start_link(opts) do
-      {:ok, iterator} -> iterator
-      {:error, error} -> raise error
-    end
+    {:ok, iterator} = start_link(opts)
+    iterator
   end
 
   @spec close(iterator) :: :ok
