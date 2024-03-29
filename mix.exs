@@ -45,7 +45,7 @@ defmodule GraphQLWSClient.MixProject do
       {:connection, "~> 1.1"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test, runtime: false},
-      {:ex_doc, "~>0.31", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:gun, "~> 2.1", optional: true},
       {:jason, "~> 1.4", optional: true},
