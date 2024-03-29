@@ -30,7 +30,7 @@ used as driver and you will need the `gun` and `jason` packages as well.
 def deps do
   [
     # ...
-    {:gun, "~> 2.0"},
+    {:gun, "~> 2.1"},
     {:jason, "~> 1.4"},
   ]
 end
