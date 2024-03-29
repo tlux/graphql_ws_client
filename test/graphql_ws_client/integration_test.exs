@@ -1,5 +1,5 @@
 defmodule GraphQLWSClient.IntegrationTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias GraphQLWSClient.{Event, GraphQLError, TestClient}
 
@@ -155,12 +155,13 @@ defmodule GraphQLWSClient.IntegrationTest do
   describe "stop" do
     test "close handle", %{client: client} do
       assert Process.alive?(client)
-      %{mod_state: %{conn: %{pid: pid}}} = :sys.get_state(client)
+      %{mod_state: %{conn: %{pid: driver_pid}}} = :sys.get_state(client)
+      assert Process.alive?(driver_pid)
 
       stop_supervised!(:test_client)
 
       refute Process.alive?(client)
-      refute Process.alive?(pid)
+      refute Process.alive?(driver_pid)
     end
   end
 

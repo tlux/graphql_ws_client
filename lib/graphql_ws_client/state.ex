@@ -24,7 +24,7 @@ defmodule GraphQLWSClient.State do
     queries: %{}
   ]
 
-  @spec put_conn(t, Conn.t(), reference) :: t
+  @spec put_conn(t, Conn.t(), nil | reference) :: t
   def put_conn(%__MODULE__{} = state, conn, monitor_ref) do
     %{
       state

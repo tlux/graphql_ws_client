@@ -87,7 +87,7 @@ defmodule GraphQLWSClientTest do
         {:ok, conn}
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.connected?(client) == false
       assert GraphQLWSClient.open(client) == :ok
@@ -101,13 +101,13 @@ defmodule GraphQLWSClientTest do
         {:error, error}
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open(client) == {:error, error}
     end
 
     test "no-op when already connected", %{config: config, conn: conn} do
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       expect(MockDriver, :connect, fn ^conn ->
         {:ok, conn}
@@ -130,7 +130,7 @@ defmodule GraphQLWSClientTest do
         {:ok, conn}
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.connected?(client) == false
       assert GraphQLWSClient.open!(client) == :ok
@@ -144,7 +144,7 @@ defmodule GraphQLWSClientTest do
         {:error, error}
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert_raise SocketError, Exception.message(error), fn ->
         GraphQLWSClient.open!(client)
@@ -167,7 +167,7 @@ defmodule GraphQLWSClientTest do
         {:ok, conn}
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.connected?(client) == false
       assert GraphQLWSClient.open_with(client, @init_payload) == :ok
@@ -181,13 +181,13 @@ defmodule GraphQLWSClientTest do
         {:error, error}
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open_with(client, @init_payload) == {:error, error}
     end
 
     test "no-op when already connected", %{config: config, conn: conn} do
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       expect(MockDriver, :connect, fn ^conn ->
         {:ok, conn}
@@ -210,7 +210,7 @@ defmodule GraphQLWSClientTest do
       |> expect(:disconnect, fn ^conn -> :ok end)
       |> expect(:connect, fn ^reconnect_conn -> {:ok, reconnect_conn} end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open_with(client, @init_payload) == :ok
       assert GraphQLWSClient.close(client) == :ok
@@ -235,7 +235,7 @@ defmodule GraphQLWSClientTest do
         {:ok, conn}
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open_with(client, @init_payload) == {:error, error}
       assert_receive :reconnected_msg
@@ -260,7 +260,7 @@ defmodule GraphQLWSClientTest do
         {:ok, conn}
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.open_with(client, @init_payload) == :ok
       assert_receive :reconnected_msg
@@ -281,7 +281,7 @@ defmodule GraphQLWSClientTest do
         {:ok, conn}
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.connected?(client) == false
       assert GraphQLWSClient.open_with!(client, @init_payload) == :ok
@@ -295,7 +295,7 @@ defmodule GraphQLWSClientTest do
         {:error, error}
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert_raise SocketError, Exception.message(error), fn ->
         GraphQLWSClient.open_with!(client, @init_payload)
@@ -383,7 +383,7 @@ defmodule GraphQLWSClientTest do
 
     test "not connected" do
       config = %{@config | connect_on_start: false}
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.query(client, @query, @variables) ==
                {:error, %SocketError{cause: :closed}}
@@ -405,7 +405,7 @@ defmodule GraphQLWSClientTest do
         :ok
       end)
 
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
 
       assert GraphQLWSClient.query(client, @query, @variables) ==
                {:error, %SocketError{cause: :timeout}}
@@ -588,7 +588,7 @@ defmodule GraphQLWSClientTest do
 
     test "not connected" do
       config = %{@config | connect_on_start: false}
-      {:ok, client} = GraphQLWSClient.start_link(config)
+      client = start_supervised!({GraphQLWSClient, config})
       error = %SocketError{cause: :closed}
 
       assert_raise SocketError, Exception.message(error), fn ->

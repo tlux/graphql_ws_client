@@ -261,10 +261,9 @@ defmodule GraphQLWSClient do
   """
   @spec query!(client, query, variables) :: any | no_return
   def query!(client, query, variables \\ %{}) do
-    case query(client, query, variables) do
-      {:ok, result} -> result
-      {:error, error} -> raise error
-    end
+    client
+    |> query(query, variables)
+    |> bang!()
   end
 
   @doc """
@@ -429,8 +428,8 @@ defmodule GraphQLWSClient do
     state = put_init_payload(state, info)
 
     case Driver.connect(config, state.init_payload) do
-      {:ok, %Conn{} = conn} ->
-        monitor_ref = Process.monitor(conn.pid)
+      {:ok, %Conn{pid: pid} = conn} ->
+        monitor_ref = maybe_monitor(pid)
 
         with {:open, from, _} <- info do
           Connection.reply(from, :ok)
@@ -482,7 +481,11 @@ defmodule GraphQLWSClient do
   end
 
   @impl true
-  def terminate(reason, %State{} = state) do
+  def terminate(reason, %State{conn: nil}) do
+    Logger.debug(format_log("Terminating client (reason: #{inspect(reason)})"))
+  end
+
+  def terminate(reason, %State{conn: conn}) do
     Logger.debug(
       format_log(
         "Terminating client, closing connection " <>
@@ -490,7 +493,7 @@ defmodule GraphQLWSClient do
       )
     )
 
-    close_connection(state)
+    Driver.disconnect(conn)
   end
 
   @impl true
@@ -575,7 +578,7 @@ defmodule GraphQLWSClient do
     case Map.fetch(listeners, id) do
       {:ok, %State.Listener{monitor_ref: monitor_ref}} ->
         Driver.push_complete(state.conn, id)
-        Process.demonitor(monitor_ref)
+        maybe_demonitor(monitor_ref, [:flush])
 
         {:reply, :ok, State.remove_listener(state, id)}
 
@@ -641,18 +644,15 @@ defmodule GraphQLWSClient do
 
       :disconnect ->
         Logger.debug(format_log("Socket went down"))
-
         {:disconnect, {:error, %SocketError{cause: :closed}}, state}
 
       :ignore ->
         Logger.debug(format_log("Ignored unexpected payload: #{inspect(msg)}"))
-
         {:noreply, state}
     end
   end
 
   def handle_info(_msg, state) do
-    # ignore unexpected payload
     {:noreply, state}
   end
 
@@ -663,7 +663,7 @@ defmodule GraphQLWSClient do
 
     with {:ok, %State.Listener{pid: pid, monitor_ref: monitor_ref}} <-
            Map.fetch(state.listeners, id) do
-      Process.demonitor(monitor_ref)
+      maybe_demonitor(monitor_ref, [:flush])
       send(pid, %Event{subscription_id: id, type: :complete})
     end
 
@@ -684,7 +684,7 @@ defmodule GraphQLWSClient do
       {:ok, %State.Listener{pid: pid, monitor_ref: monitor_ref}} ->
         Logger.debug(format_log("Message #{id} - error: #{inspect(payload)}"))
 
-        Process.demonitor(monitor_ref)
+        maybe_demonitor(monitor_ref, [:flush])
         send(pid, %Event{subscription_id: id, type: :error, payload: error})
 
         {:noreply, State.remove_listener(state, id)}
@@ -748,13 +748,22 @@ defmodule GraphQLWSClient do
   defp close_connection(%State{connected?: false} = state), do: state
 
   defp close_connection(%State{conn: conn, monitor_ref: monitor_ref} = state) do
-    Process.demonitor(monitor_ref)
+    maybe_demonitor(monitor_ref, [:flush])
     Driver.disconnect(conn)
     State.reset_conn(state)
   end
 
   defp query_payload(query, variables) do
     %{query: query, variables: Map.new(variables)}
+  end
+
+  defp maybe_monitor(nil), do: nil
+  defp maybe_monitor(pid) when is_pid(pid), do: Process.monitor(pid)
+
+  defp maybe_demonitor(nil, _opts), do: true
+
+  defp maybe_demonitor(ref, opts) when is_reference(ref) do
+    Process.demonitor(ref, opts)
   end
 
   defp bang!(:ok), do: :ok
