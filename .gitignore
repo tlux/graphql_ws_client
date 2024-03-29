@@ -30,3 +30,6 @@ graphql_ws_client-*.tar
 
 # Ignore PLTs
 /priv/plts
+
+# Ignore Apple stuff
+.DS_Store
