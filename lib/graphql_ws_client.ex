@@ -651,9 +651,8 @@ defmodule GraphQLWSClient do
     end
   end
 
-  def handle_info(msg, state) do
-    Logger.debug(format_log("Ignored unexpected payload: #{inspect(msg)}"))
-
+  def handle_info(_msg, state) do
+    # ignore unexpected payload
     {:noreply, state}
   end
 
