@@ -39,11 +39,11 @@ defmodule EventLogger do
 
   @impl true
   def handle_info(
-        {:DOWN, monitor, :process, socket, :normal},
+        {:DOWN, monitor, :process, socket, reason},
         %{monitor: monitor, socket: socket} = state
       ) do
     IO.puts("Socket closed")
-    {:stop, :normal, %{state | socket: nil, subscription_id: nil}}
+    {:stop, reason, %{state | socket: nil, subscription_id: nil}}
   end
 
   def handle_info(
