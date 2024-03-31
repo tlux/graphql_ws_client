@@ -1,6 +1,8 @@
 defmodule EventLogger do
   use GenServer
 
+  alias GraphQLWSClient.Event
+
   def start_link(socket) do
     GenServer.start_link(__MODULE__, socket)
   end
@@ -45,10 +47,7 @@ defmodule EventLogger do
   end
 
   def handle_info(
-        %GraphQLWSClient.Event{
-          type: :complete,
-          subscription_id: subscription_id
-        },
+        %Event{type: :complete, subscription_id: subscription_id},
         %{subscription_id: subscription_id} = state
       ) do
     IO.puts("complete")
@@ -56,11 +55,7 @@ defmodule EventLogger do
   end
 
   def handle_info(
-        %GraphQLWSClient.Event{
-          type: :next,
-          subscription_id: subscription_id,
-          payload: payload
-        },
+        %Event{type: :next, subscription_id: subscription_id, payload: payload},
         %{subscription_id: subscription_id} = state
       ) do
     IO.inspect(payload)
@@ -68,11 +63,7 @@ defmodule EventLogger do
   end
 
   def handle_info(
-        %GraphQLWSClient.Event{
-          type: :error,
-          subscription_id: subscription_id,
-          payload: error
-        },
+        %Event{type: :error, subscription_id: subscription_id, payload: error},
         %{subscription_id: subscription_id} = state
       ) do
     IO.inspect(error, label: "error")
@@ -82,14 +73,12 @@ defmodule EventLogger do
   def handle_info(_msg, state), do: {:noreply, state}
 end
 
-IO.puts("Waiting for events...")
-
 {:ok, socket} =
   GraphQLWSClient.start_link(url: "ws://localhost:8080/subscriptions")
 
 EventLogger.start_link(socket)
 
-Process.sleep(2000)
+Process.sleep(1000)
 
 mutation = """
   mutation CreatePost($author: String!, $body: String!) {
