@@ -10,7 +10,8 @@ defmodule GraphQLWSClient.WSClient do
   @callback await_up(pid, timeout) ::
               {:ok, :http | :http2 | :raw | :socks} | {:error, any}
 
-  @callback ws_upgrade(pid, binary) :: reference
+  @callback ws_upgrade(pid, binary, :gun.req_headers(), :gun.ws_opts()) ::
+              reference
 
   @callback ws_send(pid, reference, frame :: term) :: :ok
 
