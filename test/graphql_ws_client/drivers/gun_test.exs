@@ -65,7 +65,17 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       |> expect(:await_up, fn ^pid, 250 ->
         {:ok, :http}
       end)
-      |> expect(:ws_upgrade, fn ^pid, "/subscriptions" ->
+      |> expect(:ws_upgrade, fn ^pid,
+                                "/subscriptions",
+                                [
+                                  {"sec-websocket-protocol",
+                                   "graphql-transport-ws"}
+                                ],
+                                %{
+                                  protocols: [
+                                    {"graphql-transport-ws", :gun_ws_h}
+                                  ]
+                                } ->
         send(self(), {:gun_upgrade, pid, stream_ref, ["websocket"], nil})
         stream_ref
       end)
@@ -118,7 +128,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:ok, :http} end)
-      |> expect(:ws_upgrade, fn _, _ -> stream_ref end)
+      |> expect(:ws_upgrade, fn _, _, _, _ -> stream_ref end)
       |> expect(:close, fn ^pid -> :ok end)
 
       assert Gun.connect(@conn) == {:error, %SocketError{cause: :timeout}}
@@ -133,7 +143,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:ok, :http} end)
-      |> expect(:ws_upgrade, fn _, _ ->
+      |> expect(:ws_upgrade, fn _, _, _, _ ->
         send(self(), {:gun_response, pid, stream_ref, nil, code, nil})
         stream_ref
       end)
@@ -153,7 +163,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:ok, :http} end)
-      |> expect(:ws_upgrade, fn _, _ ->
+      |> expect(:ws_upgrade, fn _, _, _, _ ->
         send(self(), {:gun_error, pid, stream_ref, reason})
         stream_ref
       end)
@@ -171,7 +181,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:ok, :http} end)
-      |> expect(:ws_upgrade, fn _, _ ->
+      |> expect(:ws_upgrade, fn _, _, _, _ ->
         send(self(), {:gun_upgrade, pid, stream_ref, ["websocket"], nil})
         stream_ref
       end)
@@ -188,7 +198,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:ok, :http} end)
-      |> expect(:ws_upgrade, fn _, _ ->
+      |> expect(:ws_upgrade, fn _, _, _, _ ->
         send(self(), {:gun_upgrade, pid, stream_ref, ["websocket"], nil})
         stream_ref
       end)
@@ -209,7 +219,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:ok, :http} end)
-      |> expect(:ws_upgrade, fn _, _ ->
+      |> expect(:ws_upgrade, fn _, _, _, _ ->
         send(self(), {:gun_upgrade, pid, stream_ref, ["websocket"], nil})
         stream_ref
       end)
@@ -227,7 +237,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:ok, :http} end)
-      |> expect(:ws_upgrade, fn _, _ ->
+      |> expect(:ws_upgrade, fn _, _, _, _ ->
         send(self(), {:gun_upgrade, pid, stream_ref, ["websocket"], nil})
         stream_ref
       end)
@@ -253,7 +263,7 @@ defmodule GraphQLWSClient.Drivers.GunTest do
       WSClientMock
       |> expect(:open, fn _, _, _ -> {:ok, pid} end)
       |> expect(:await_up, fn _, _ -> {:ok, :http} end)
-      |> expect(:ws_upgrade, fn _, _ ->
+      |> expect(:ws_upgrade, fn _, _, _, _ ->
         send(self(), {:gun_upgrade, pid, stream_ref, ["websocket"], nil})
         stream_ref
       end)

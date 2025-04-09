@@ -10,6 +10,7 @@ defmodule GraphQLWSClient.Drivers.Gun.Opts do
             adapter: :gun,
             connect_options: @default_connect_options,
             json_library: Jason,
+            subprotocol: "graphql-transport-ws",
             upgrade_timeout: :timer.seconds(5)
 
   @type t :: %__MODULE__{
@@ -17,6 +18,7 @@ defmodule GraphQLWSClient.Drivers.Gun.Opts do
           adapter: module,
           connect_options: %{optional(atom) => any},
           json_library: module,
+          subprotocol: String.t(),
           upgrade_timeout: timeout
         }
 

@@ -79,7 +79,15 @@ defmodule GraphQLWSClient.Drivers.Gun do
     with {:await_up, {:ok, _protocol}} <-
            {:await_up,
             opts.adapter.await_up(pid, opts.connect_options.connect_timeout)},
-         stream_ref = opts.adapter.ws_upgrade(pid, config.path),
+         stream_ref =
+           opts.adapter.ws_upgrade(
+             pid,
+             config.path,
+             [{"sec-websocket-protocol", opts.subprotocol}],
+             %{
+               protocols: [{opts.subprotocol, :gun_ws_h}]
+             }
+           ),
          :ok <- await_upgrade(opts.upgrade_timeout),
          :ok <-
            init_connection(
